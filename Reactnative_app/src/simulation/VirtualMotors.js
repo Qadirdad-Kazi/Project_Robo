@@ -11,7 +11,7 @@ class VirtualMotors {
         this.position = { x: 0, y: 0, heading: 0 }; // Grid simulation
         this.velocity = 0; // units/sec
         this.pathHistory = [];
-        this.is simulating = true;
+        this.isSimulating = true;
     }
 
     getTelemetry() {
