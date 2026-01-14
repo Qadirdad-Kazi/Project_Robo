@@ -46,17 +46,20 @@ class IntentParser {
 
         // 1. Music (Search & Play) - Check first to catch "Play" before generic moves
         // "Play something on youtube", "Play Despacito"
-        if (lower.startsWith('play') && (lower.includes('youtube') || lower.includes('song') || lower.length > 5)) {
-            // Assume it's media if it's "Play ..." and not just a movement command
+        // 1. Music/Media (Youtube)
+        // "Play something on youtube", "Open YouTube", "Play Despacito"
+        if (lower.includes('youtube') || (lower.startsWith('play') && lower.length > 5)) {
             // Extract Query
             let query = lower
                 .replace('play', '')
+                .replace('open', '')
                 .replace('on youtube', '')
+                .replace('youtube', '')
                 .replace('music', '')
                 .replace('song', '')
                 .trim();
 
-            if (query.length === 0) query = "music";
+            if (query.length === 0) query = "trending"; // Default to trending if just "Open Youtube"
 
             return this.createResult(INTENTS.PLAY_MUSIC, 0.9, { query });
         }

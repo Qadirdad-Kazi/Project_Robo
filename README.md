@@ -54,6 +54,19 @@ pip install -r requirements.txt
 python main.py
 ```
 
+### 🧠 AI Brain Setup (Local Llama 3.2)
+To enable the **Neural Bridge** (AI Chat) features in the Admin Screen, you need a local LLM running on your computer.
+
+1. **Install Ollama**: Download from [ollama.com](https://ollama.com).
+2. **Download Model**: Run `ollama pull llama3.2:3b`.
+3. **Connect Brain**:
+   To allow the phone to talk to your computer, run this command in your computer's terminal:
+   ```bash
+   OLLAMA_HOST=0.0.0.0 ollama serve
+   ```
+   *Note: Ensure your phone and computer are on the same WiFi network.*
+
+
 ---
 
 ## 🤝 Compatibility

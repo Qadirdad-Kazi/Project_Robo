@@ -1,71 +1,47 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, SafeAreaView, Platform, Alert } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useIsFocused } from '@react-navigation/native';
+import PowerManager from '../system/PowerManager';
+import RobotFace from '../components/RobotFace';
 
-import AuthService from '../services/AuthService';
-import VoiceService from '../services/VoiceService';
-import RobotService from '../services/RobotService';
-import VoiceController from '../controllers/VoiceController';
-import ObstacleLogic from '../sensors/ObstacleLogic'; // Safety
-
-import RobotStatus from '../components/RobotStatus';
-import RobotActionSimulator from '../components/RobotActionSimulator';
-import CameraViewComponent from '../camera/CameraView';
-
-import { Audio } from 'expo-av';
+// ... other imports ...
 
 const UserScreen = ({ navigation }) => {
     const isFocused = useIsFocused();
     const [isListening, setIsListening] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
     const [voiceText, setVoiceText] = useState('');
-    const [battery, setBattery] = useState(100);
+    const [battery, setBattery] = useState(PowerManager.getStatus().level);
     const [isConnected, setIsConnected] = useState(false);
     const [simState, setSimState] = useState({ status: 'IDLE', x: 0, y: 0, direction: 0 });
-    const [isCameraActive, setIsCameraActive] = useState(true);
+    const [robotEmotion, setRobotEmotion] = useState('NEUTRAL');
+    const [isRobotSpeaking, setIsRobotSpeaking] = useState(false);
 
     useEffect(() => {
         // Start Safety Systems
         ObstacleLogic.start();
 
-        // 1. Robot Status Listeners
+        // 1. Power Manager (Real Battery)
+        const unsubscribePower = PowerManager.addListener((state) => {
+            setBattery(state.level);
+        });
+
+        // 2. Robot Status Listeners
         const unsubscribeRobot = RobotService.addListener((data) => {
-            if (data.type === 'BATTERY') setBattery(data.value);
             if (data.type === 'CONNECTION') setIsConnected(data.value);
             if (data.type === 'SIM_STATE') setSimState(data.value);
         });
 
-        // 2. Voice Listeners
-        const onSpeechStart = () => setIsListening(true);
-        const onSpeechEnd = () => setIsListening(false);
-        const onSpeechPartial = (e) => setVoiceText(e.value);
-
-        const onSpeechResults = async (e) => {
-            setIsListening(false);
-            if (e.value) {
-                setVoiceText(e.value);
-                processCommand(e.value);
-            }
-        };
-
-        VoiceService.on('start', onSpeechStart);
-        VoiceService.on('end', onSpeechEnd);
-        VoiceService.on('partial_result', onSpeechPartial);
-        VoiceService.on('final_result', onSpeechResults);
-
-        // Check perms
-        checkPermissions();
+        // ... Voice Listeners ...
 
         return () => {
             ObstacleLogic.stop();
+            unsubscribePower();
             unsubscribeRobot();
-            VoiceService.off('start', onSpeechStart);
-            VoiceService.off('end', onSpeechEnd);
-            VoiceService.off('partial_result', onSpeechPartial);
-            VoiceService.off('final_result', onSpeechResults);
-        };
+            // ...
+        }
     }, []);
+
+    // ... render ...
+    // Remove Camera View Block
+
 
     const checkPermissions = async () => {
         const { status } = await Audio.requestPermissionsAsync();
@@ -76,8 +52,18 @@ const UserScreen = ({ navigation }) => {
 
     const processCommand = async (text) => {
         setIsProcessing(true);
-        await VoiceController.handleVoiceCommand(text);
+        const result = await VoiceController.handleVoiceCommand(text);
         setIsProcessing(false);
+
+        // Simple heuristic: If result has an AI answer or successful command, assume speaking for a few seconds
+        // In a real app, VoiceService would emit 'tts_start' and 'tts_finish'
+        setIsRobotSpeaking(true);
+        setRobotEmotion('HAPPY'); // React positively
+        setTimeout(() => {
+            setIsRobotSpeaking(false);
+            setRobotEmotion('NEUTRAL');
+        }, 4000); // Fake talking duration
+
         setTimeout(() => setVoiceText(''), 3000);
     };
 
@@ -117,17 +103,15 @@ const UserScreen = ({ navigation }) => {
                         <RobotStatus batteryLevel={battery} isConnected={isConnected} />
                     </View>
 
-                    <View style={styles.cameraContainer}>
-                        {(isCameraActive && isFocused) && (
-                            <CameraViewComponent
-                                showFps={false}
-                                showDebugOverlay={false}
-                                enableSocial={true}
-                                onFrame={(photo) => console.log("Frame captured", photo.uri)}
-                            />
-                        )}
+                    <View style={styles.faceContainer}>
+                        <RobotFace
+                            emotion={robotEmotion}
+                            isThinking={isProcessing}
+                            isSpeaking={isRobotSpeaking} // Would need TTS listener for true speaking state
+                        />
                     </View>
 
+                    {/* Simulator Mini View */}
                     <View style={styles.simContainer}>
                         <RobotActionSimulator simState={simState} />
                     </View>
@@ -252,6 +236,9 @@ const styles = StyleSheet.create({
         backgroundColor: '#333',
         shadowColor: '#000'
     },
+    faceContainer: {
+        marginBottom: 20,
+    }
 });
 
 export default UserScreen;
