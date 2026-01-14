@@ -3,6 +3,7 @@
 
 import DecisionEngine, { MODES } from '../core/DecisionEngine';
 import VoiceService from '../services/VoiceService';
+import SafetyMonitor from '../safety/SafetyRules';
 
 class FollowOwnerEngine {
     constructor() {
@@ -30,9 +31,16 @@ class FollowOwnerEngine {
      * Process a video frame face detection to drive the robot
      * @param {Object} face - Expo Face Object
      * @param {Object} frameSize - { width, height } of camera view
+     * @param {Object} identity - Identified User info (optional)
      */
-    update(face, frameSize) {
+    update(face, frameSize, identity) {
         if (DecisionEngine.currentMode !== MODES.FOLLOW || !face) return;
+
+        // SECURITY CHECK
+        if (identity && !SafetyMonitor.validateFollowTarget(identity)) {
+            // Ignoring invalid target
+            return;
+        }
 
         const now = Date.now();
         if (now - this.lastCommandTime < this.commandInterval) return;

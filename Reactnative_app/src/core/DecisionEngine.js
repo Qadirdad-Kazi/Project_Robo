@@ -4,14 +4,16 @@
 
 import RobotService from '../services/RobotService';
 import VoiceService from '../services/VoiceService';
+import SafetyMonitor from '../safety/SafetyRules';
 
 export const MODES = {
     IDLE: 'IDLE',
     MANUAL: 'MANUAL',
     FOLLOW: 'FOLLOW',
     GOTO: 'GOTO',
-    AVOID: 'AVOID', // Emergency avoidance
-    DANCE: 'DANCE'
+    AVOID: 'AVOID',
+    DANCE: 'DANCE',
+    SAFETY_LOCK: 'SAFETY_LOCK' // New Mode for sensor fail
 };
 
 class DecisionEngine {
@@ -20,7 +22,7 @@ class DecisionEngine {
 
         // Input States
         this.sensorState = { distance: 200, blocked: false };
-        this.visionProposal = null; // { command: 'FORWARD', confidence: 1.0 }
+        this.visionProposal = null;
 
         // Listeners for UI
         this.listeners = [];
@@ -29,16 +31,14 @@ class DecisionEngine {
         this.safetyEnabled = true;
 
         // Loop
-        this.decisionLoop = setInterval(this.evaluate.bind(this), 250); // 4Hz Decision Cycle (Slower for UI readability)
+        this.decisionLoop = setInterval(this.evaluate.bind(this), 250);
     }
 
     // --- OBSERVABILITY ---
     addListener(callback) {
         this.listeners.push(callback);
-        // Initial State
         const state = this.captureState('INIT', 'System Start');
         callback(state);
-
         return () => {
             this.listeners = this.listeners.filter(cb => cb !== callback);
         };
@@ -67,31 +67,22 @@ class DecisionEngine {
      */
     updateSafetyStatus(distance) {
         this.sensorState.distance = distance;
-        this.sensorState.blocked = distance < 30; // 30cm Hard Stop
+        this.sensorState.blocked = distance < 30;
+        SafetyMonitor.notifySensorHeartbeat(); // Keep Alive
     }
 
-    /**
-     * Set the High-Level Operation Mode
-     * @param {string} mode 
-     */
     setMode(mode) {
         if (this.currentMode === mode) return;
 
         console.log(`[DecisionEngine] Mode Change: ${this.currentMode} -> ${mode}`);
         this.currentMode = mode;
-        this.visionProposal = null; // Reset Proposals
+        this.visionProposal = null;
 
-        // Immediate Feedback
-        if (mode === MODES.IDLE) RobotService.stop();
+        if (mode === MODES.IDLE || mode === MODES.SAFETY_LOCK) RobotService.stop();
 
         this.notifyListeners({ type: 'MODE_CHANGE', value: mode });
     }
 
-    /**
-     * Specialized Modules propose a move
-     * @param {string} command - 'FORWARD', 'LEFT', etc.
-     * @param {Object} metadata - { speed, reason }
-     */
     proposeMovement(command, metadata = {}) {
         this.visionProposal = { command, ...metadata, timestamp: Date.now() };
     }
@@ -102,78 +93,100 @@ class DecisionEngine {
         let decision = 'IDLE';
         let reason = 'Waiting';
 
-        // 1. SAFETY OVERRIDE (Highest Priority)
-        // If we are about to crash, nothing else matters.
-        if (this.safetyEnabled && this.sensorState.blocked) {
-            decision = 'STOP (SAFETY)';
-            reason = 'OBSTACLE DETECTED';
+        // 1. SAFETY CHECK (Centralized)
+        const safety = SafetyMonitor.evaluate(this.sensorState, this.currentMode);
 
-            if (this.currentMode !== MODES.AVOID && this.currentMode !== MODES.MANUAL) {
-                console.warn("[DecisionEngine] SAFETY INTERVENTION: OBSTACLE DETECTED");
-                this.setMode(MODES.AVOID);
-                RobotService.stop();
-                VoiceService.speak("Obstacle detected.");
+        if (!safety.safe) {
+            // UNSAFE STATE
+            decision = safety.action; // STOP or FREEZE
+            reason = safety.reason;
+
+            if (safety.action === 'FREEZE') {
+                if (this.currentMode !== MODES.SAFETY_LOCK) {
+                    this.setMode(MODES.SAFETY_LOCK);
+                    RobotService.stop(); // Kill motors
+                    VoiceService.speak("Sensor failure. Freezing.");
+                }
+                this.notifyListeners(this.captureState(decision, reason));
+                return;
             }
+
+            if (safety.action === 'STOP') {
+                // Obstacle
+                if (this.currentMode !== MODES.AVOID && this.currentMode !== MODES.MANUAL) {
+                    this.setMode(MODES.AVOID);
+                    RobotService.stop();
+                    VoiceService.speak("Obstacle detected.");
+                }
+
+                // If In Manual and Blocked -> Stop
+                if (this.currentMode === MODES.MANUAL) {
+                    RobotService.stop();
+                }
+            }
+
+            // Broadcast and return
+            this.notifyListeners(this.captureState(decision, reason));
+            return;
         }
-        else if (this.currentMode === MODES.AVOID && !this.sensorState.blocked) {
-            // Recovery
+
+        // RECOVERY from Safety States
+        if (this.currentMode === MODES.SAFETY_LOCK) {
+            // If we are here, safety.safe is true, meaning sensors are back!
             this.setMode(MODES.IDLE);
-            decision = 'RECOVERING';
-            reason = 'PATH CLEARED';
-        }
-        else {
-            // 2. NORMAL OPERATION
-            switch (this.currentMode) {
-                case MODES.IDLE:
-                    decision = 'HOLD';
-                    break;
-
-                case MODES.MANUAL:
-                    decision = 'USER CONTROL';
-                    reason = 'Admin Override';
-                    break;
-
-                case MODES.FOLLOW:
-                    const followRes = this.handleFollowMode();
-                    if (followRes) {
-                        decision = followRes.command;
-                        reason = followRes.reason || 'Visual Tracking';
-                    } else {
-                        decision = 'SEARCHING';
-                        reason = 'No Target';
-                    }
-                    break;
-
-                case MODES.GOTO:
-                    // Similar to Follow
-                    const gotoRes = this.handleFollowMode();
-                    if (gotoRes) {
-                        decision = gotoRes.command;
-                        reason = 'Navigating to Point';
-                    }
-                    else {
-                        decision = 'SEARCHING';
-                        reason = 'Target Lost';
-                    }
-                    break;
-            }
+            VoiceService.speak("Sensors online. Resuming.");
         }
 
-        // Broadcast State for Debug UI
+        if (this.currentMode === MODES.AVOID) {
+            this.setMode(MODES.IDLE);
+        }
+
+        // 2. NORMAL MODE HANDLING
+        switch (this.currentMode) {
+            case MODES.IDLE:
+                decision = 'HOLD';
+                break;
+
+            case MODES.MANUAL:
+                decision = 'USER CONTROL';
+                reason = 'Admin Override';
+                break;
+
+            case MODES.FOLLOW:
+                const followRes = this.handleFollowMode();
+                if (followRes) {
+                    decision = followRes.command;
+                    reason = followRes.reason || 'Visual Tracking';
+                } else {
+                    decision = 'SEARCHING';
+                    reason = 'No Target';
+                }
+                break;
+
+            case MODES.GOTO:
+                const gotoRes = this.handleFollowMode();
+                if (gotoRes) {
+                    decision = gotoRes.command;
+                    reason = 'Navigating to Point';
+                } else {
+                    decision = 'SEARCHING';
+                    reason = 'Target Lost';
+                }
+                break;
+        }
+
         this.notifyListeners(this.captureState(decision, reason));
     }
 
     handleFollowMode() {
-        // Check if we have a fresh proposal (latency check)
         if (!this.visionProposal) return null;
 
         const now = Date.now();
         if (now - this.visionProposal.timestamp > 1000) {
-            // Stale proposal (Vision lost?)
             return null;
         }
 
-        // Execute Proposed Command
+        // Execute 
         if (this.visionProposal.command === 'STOP') {
             RobotService.stop();
         } else {

@@ -84,7 +84,8 @@ const CameraViewComponent = ({ showFps = false, showDebugOverlay = true, enableS
             }
 
             if (primaryFace && cameraLayout.width > 0) {
-                FollowOwnerEngine.update(primaryFace, cameraLayout);
+                // Pass Identity for Safety Checks
+                FollowOwnerEngine.update(primaryFace, cameraLayout, primaryIdentity);
             }
 
             VisionDebugService.update({
