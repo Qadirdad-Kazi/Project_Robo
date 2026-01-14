@@ -11,7 +11,10 @@ export const INTENTS = {
     GREET: 'GREETING',
     PLAY_MUSIC: 'PLAY_MUSIC',
     MEDIA_CONTROL: 'MEDIA_CONTROL',
+    VOLUME_CONTROL: 'VOLUME_CONTROL', // New
     SCHEDULE_TASK: 'SCHEDULE_TASK',
+    MODE_SWITCH: 'MODE_SWITCH', // New
+    AI_QUERY: 'AI_QUERY', // New
     UNKNOWN: 'UNKNOWN'
 };
 
@@ -26,7 +29,21 @@ class IntentParser {
         if (!text) return this.createResult(INTENTS.UNKNOWN, 0.0);
         const lower = text.toLowerCase().trim();
 
-        // 0. SCHEDULING (Complex Parsing)
+        // 0.0. MODE SWITCHING
+        if (lower.match(/enable ai|use ai|start ai|chat mode|talk to me/)) {
+            return this.createResult(INTENTS.MODE_SWITCH, 1.0, { mode: 'AI' });
+        }
+        if (lower.match(/disable ai|stop ai|robot mode|command mode|back to robot/)) {
+            return this.createResult(INTENTS.MODE_SWITCH, 1.0, { mode: 'ROBOT' });
+        }
+
+        // 0.1. EXPLICIT AI QUERY ("Ask AI ...", "Tell me ...")
+        if (lower.startsWith('ask ai') || lower.startsWith('ask llama')) {
+            const query = lower.replace('ask ai', '').replace('ask llama', '').trim();
+            return this.createResult(INTENTS.AI_QUERY, 1.0, { query });
+        }
+
+        // 0.2. SCHEDULING (Complex Parsing)
         // "Remind me to [Task] in [N] minutes"
         const remindMatch = lower.match(/remind me to (.+) in (\d+) (minute|min|hour|hr|second|sec)/);
         if (remindMatch) {
@@ -44,8 +61,6 @@ class IntentParser {
             return this.createResult(INTENTS.SCHEDULE_TASK, 0.95, { description: task, time });
         }
 
-        // 1. Music (Search & Play) - Check first to catch "Play" before generic moves
-        // "Play something on youtube", "Play Despacito"
         // 1. Music/Media (Youtube)
         // "Play something on youtube", "Open YouTube", "Play Despacito"
         if (lower.includes('youtube') || (lower.startsWith('play') && lower.length > 5)) {
@@ -64,13 +79,20 @@ class IntentParser {
             return this.createResult(INTENTS.PLAY_MUSIC, 0.9, { query });
         }
 
-        // 2. Media Controls
+        // 2. Media Controls & Volume
         if (lower.includes('pause') || (lower.includes('stop') && lower.includes('music'))) {
             return this.createResult(INTENTS.MEDIA_CONTROL, 0.95, { action: 'pause' });
         }
         if (lower.match(/next track|skip song|next song/)) {
             return this.createResult(INTENTS.MEDIA_CONTROL, 0.95, { action: 'next' });
         }
+        if (lower.includes('volume up') || lower.includes('louder')) {
+            return this.createResult(INTENTS.VOLUME_CONTROL, 0.9, { action: 'up' });
+        }
+        if (lower.includes('volume down') || lower.includes('quieter')) {
+            return this.createResult(INTENTS.VOLUME_CONTROL, 0.9, { action: 'down' });
+        }
+
 
         // 3. Halt / Stop (High Priority)
         // If "Stop Music" was caught above, this won't trigger. 
@@ -79,7 +101,7 @@ class IntentParser {
         }
 
         // 4. Follow Me
-        if (lower.match(/come here|come to me|follow me|to me|here boy/)) {
+        if (lower.match(/come here|come to me|follow me|to me|here boy|track me/)) {
             return this.createResult(INTENTS.FOLLOW, 0.95);
         }
 
@@ -95,7 +117,7 @@ class IntentParser {
         if (lower.match(/go there|move forward|walk|advance/)) {
             return this.createResult(INTENTS.MOVE, 0.85, { direction: 'forward' });
         }
-        if (lower.match(/go back|retreat|reverse|backup/)) {
+        if (lower.match(/go back|retreat|reverse|backup|move back/)) {
             return this.createResult(INTENTS.MOVE, 0.85, { direction: 'backward' });
         }
 

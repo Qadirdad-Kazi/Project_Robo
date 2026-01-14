@@ -1,7 +1,20 @@
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, SafeAreaView, Platform, Alert, ScrollView } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useIsFocused } from '@react-navigation/native';
+
+import AuthService from '../services/AuthService';
+import VoiceService from '../services/VoiceService';
+import RobotService from '../services/RobotService';
+import VoiceController from '../controllers/VoiceController';
+import ObstacleLogic from '../sensors/ObstacleLogic';
+
+import RobotStatus from '../components/RobotStatus';
+import RobotActionSimulator from '../components/RobotActionSimulator';
 import PowerManager from '../system/PowerManager';
 import RobotFace from '../components/RobotFace';
 
-// ... other imports ...
+import { Audio } from 'expo-av';
 
 const UserScreen = ({ navigation }) => {
     const isFocused = useIsFocused();
@@ -29,14 +42,37 @@ const UserScreen = ({ navigation }) => {
             if (data.type === 'SIM_STATE') setSimState(data.value);
         });
 
-        // ... Voice Listeners ...
+        // 3. Voice Listeners
+        const onSpeechStart = () => setIsListening(true);
+        const onSpeechEnd = () => setIsListening(false);
+        const onSpeechPartial = (e) => setVoiceText(e.value && e.value.length > 0 ? e.value[0] : '');
+
+        const onSpeechResults = async (e) => {
+            setIsListening(false);
+            if (e.value && e.value.length > 0) {
+                const spokenText = e.value[0];
+                setVoiceText(spokenText);
+                processCommand(spokenText);
+            }
+        };
+
+        VoiceService.on('start', onSpeechStart);
+        VoiceService.on('end', onSpeechEnd);
+        VoiceService.on('partial_result', onSpeechPartial);
+        VoiceService.on('final_result', onSpeechResults);
+
+        // Check perms
+        checkPermissions();
 
         return () => {
             ObstacleLogic.stop();
             unsubscribePower();
             unsubscribeRobot();
-            // ...
-        }
+            VoiceService.off('start', onSpeechStart);
+            VoiceService.off('end', onSpeechEnd);
+            VoiceService.off('partial_result', onSpeechPartial);
+            VoiceService.off('final_result', onSpeechResults);
+        };
     }, []);
 
     // ... render ...
@@ -98,7 +134,11 @@ const UserScreen = ({ navigation }) => {
             </View>
 
             <View style={styles.content}>
-                <View style={{ flex: 1 }}>
+                <ScrollView
+                    style={{ flex: 1 }}
+                    contentContainerStyle={{ paddingBottom: 20 }}
+                    showsVerticalScrollIndicator={false}
+                >
                     <View style={styles.statusContainer}>
                         <RobotStatus batteryLevel={battery} isConnected={isConnected} />
                     </View>
@@ -107,7 +147,7 @@ const UserScreen = ({ navigation }) => {
                         <RobotFace
                             emotion={robotEmotion}
                             isThinking={isProcessing}
-                            isSpeaking={isRobotSpeaking} // Would need TTS listener for true speaking state
+                            isSpeaking={isRobotSpeaking}
                         />
                     </View>
 
@@ -115,7 +155,7 @@ const UserScreen = ({ navigation }) => {
                     <View style={styles.simContainer}>
                         <RobotActionSimulator simState={simState} />
                     </View>
-                </View>
+                </ScrollView>
 
                 <View style={styles.bottomControls}>
                     <Text style={styles.transcriptionText}>

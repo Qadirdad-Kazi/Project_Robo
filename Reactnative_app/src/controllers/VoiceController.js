@@ -4,19 +4,16 @@ import RobotService from '../services/RobotService';
 import LlamaService from '../services/LlamaService';
 import VoiceService from '../services/VoiceService';
 
+let CURRENT_MODE = 'ROBOT'; // 'ROBOT' | 'AI'
+
 export const handleVoiceCommand = async (text) => {
     try {
-        console.log("[VoiceController] Processing:", text);
+        console.log(`[VoiceController] Processing: "${text}" in mode: ${CURRENT_MODE}`);
 
         // 1. Parse Intent
         const intentResult = IntentParser.parse(text);
 
-        // 2. Notify Robot Service (for UI/Admin Logs)
-        // We inject the original text for debugging.
-        // The AdminScreen listens for 'VOICE_CONTROL' events.
-        // 2. Notify Robot Service (for UI/Admin Logs)
-        // We inject the original text for debugging.
-        // The AdminScreen listens for 'VOICE_CONTROL' events.
+        // Notify Service
         RobotService.notifyListeners({
             type: 'VOICE_CONTROL',
             raw: text,
@@ -25,46 +22,75 @@ export const handleVoiceCommand = async (text) => {
             parameters: intentResult.parameters
         });
 
-        // 3. Execute Action
-        if (intentResult.confidence > 0.6) {
-            // High confidence standard command (Movement, Media, etc.)
+        // 2. CHECK FOR CRITICAL COMMANDS (Always Active)
+        // Mode Switching
+        if (intentResult.type === 'MODE_SWITCH') {
+            CURRENT_MODE = intentResult.parameters.mode;
+            VoiceService.speak(CURRENT_MODE === 'AI' ? "AI Mode Enabled." : "Robot Mode Enabled.");
+            return { ...intentResult, executed: true };
+        }
+
+        // Volume Control (Global)
+        if (intentResult.type === 'VOLUME_CONTROL') {
+            // Mock volume control for now
+            VoiceService.speak(`Volume ${intentResult.parameters.action}`);
+            return { ...intentResult, executed: true };
+        }
+
+        // Halt (Safety)
+        if (intentResult.type === 'HALT') {
             await CommandMap.execute(intentResult);
+            return { ...intentResult, executed: true };
+        }
+
+        // 3. MODE SPECIFIC LOGIC
+        if (CURRENT_MODE === 'AI') {
+            // --- AI MODE ---
+            // In AI Mode, we treat everything as a prompt unless it was a switch/halt command caught above.
+            await handleAIQuery(text);
+
         } else {
-            // UNKNOWN or Low Confidence -> Fallback to AI Brain (Llama 3.2)
-            console.log("[VoiceController] Standard command unknown. Asking AI Brain...");
+            // --- ROBOT MODE (Default) ---
 
-            // Feedback to user
-            VoiceService.speak("Thinking");
+            // Check for explicit "Ask AI" intent even in Robot Mode
+            if (intentResult.type === 'AI_QUERY') {
+                await handleAIQuery(intentResult.parameters.query);
+                return;
+            }
 
-            try {
-                // Query Llama
-                const aiResponse = await LlamaService.query(text);
-
-                // Speak Result
-                VoiceService.speak(aiResponse);
-
-                // Log to Admin
-                RobotService.notifyListeners({
-                    type: 'VOICE_CONTROL', // Re-emit with AI response info
-                    raw: text,
-                    intent: 'GENERATIVE_AI',
-                    confidence: 1.0,
-                    parameters: { answer: aiResponse }
-                });
-
-            } catch (e) {
-                console.warn("AI Brain failed", e);
-                VoiceService.speak("I am having trouble connecting to my brain.");
+            if (intentResult.confidence > 0.6) {
+                // Execute Robot Command
+                await CommandMap.execute(intentResult);
+            } else {
+                // Unknown Command in Robot Mode -> Error
+                VoiceService.speak("Command not recognized.");
             }
         }
 
-        return {
-            ...intentResult,
-            executed: true
-        };
+        return { ...intentResult, executed: true };
     } catch (error) {
         console.error("[VoiceController] Error:", error);
         return { error: error.message };
+    }
+};
+
+// Helper for AI
+const handleAIQuery = async (prompt) => {
+    VoiceService.speak("Thinking");
+    try {
+        const aiResponse = await LlamaService.query(prompt);
+        VoiceService.speak(aiResponse);
+
+        // Log AI Response
+        RobotService.notifyListeners({
+            type: 'VOICE_CONTROL',
+            raw: prompt,
+            intent: 'GENERATIVE_AI',
+            confidence: 1.0,
+            parameters: { answer: aiResponse }
+        });
+    } catch (e) {
+        VoiceService.speak("Brain Offline.");
     }
 };
 
