@@ -6,6 +6,7 @@ import VoiceService from '../services/VoiceService';
 import { INTENTS } from './IntentParser';
 import FollowOwnerEngine from '../navigation/FollowOwnerEngine';
 import DecisionEngine, { MODES } from '../core/DecisionEngine';
+import MediaController from '../media/MediaController';
 
 class CommandMap {
 
@@ -16,15 +17,30 @@ class CommandMap {
 
         switch (type) {
             case INTENTS.HALT:
-                DecisionEngine.setMode(MODES.IDLE); // Reset Brain
+                DecisionEngine.setMode(MODES.IDLE);
                 FollowOwnerEngine.stop();
+                MediaController.pause(); // Silence media
                 await RobotService.stop();
                 VoiceService.speak("Stopping.");
                 break;
 
-            case INTENTS.FOLLOW:
-                FollowOwnerEngine.start(); // Engine sets Mode to FOLLOW
+            case INTENTS.PLAY_MUSIC:
+                // Start Music
+                const query = parameters.query || "Music";
+                MediaController.play(query);
                 break;
+
+            case INTENTS.MEDIA_CONTROL:
+                if (parameters.action === 'pause') MediaController.pause();
+                else if (parameters.action === 'stop') MediaController.stop();
+                else if (parameters.action === 'next') MediaController.next();
+                break;
+
+            case INTENTS.FOLLOW:
+                FollowOwnerEngine.start();
+                break;
+
+            // ... (rest same)
 
             case INTENTS.MOVE:
                 DecisionEngine.setMode(MODES.MANUAL); // Take over

@@ -8,6 +8,7 @@ import FaceRecognitionService from '../services/FaceRecognitionService';
 import DistanceSensor from '../sensors/DistanceSensor';
 import CameraViewComponent from '../camera/CameraView';
 import DecisionEngine from '../core/DecisionEngine';
+import MediaController from '../media/MediaController';
 
 const AdminScreen = ({ navigation }) => {
     const isFocused = useIsFocused();
@@ -21,6 +22,8 @@ const AdminScreen = ({ navigation }) => {
         reason: 'Initializing...',
         safety: { blocked: false }
     });
+
+    const [mediaState, setMediaState] = useState({ status: 'IDLE', track: null });
 
     const [visionStats, setVisionStats] = useState({
         fps: 0,
@@ -41,6 +44,11 @@ const AdminScreen = ({ navigation }) => {
             if (data.type === 'THINK') {
                 setCortexState(data);
             }
+        });
+
+        // Media Listener
+        const unsubscribeMedia = MediaController.addListener((state) => {
+            setMediaState(state);
         });
 
         // Distance Sensor Listener
@@ -72,6 +80,7 @@ const AdminScreen = ({ navigation }) => {
 
         return () => {
             unsubscribeCortex();
+            unsubscribeMedia();
             DistanceSensor.removeListener('distance', onDistance);
             unsubscribeRobot();
             unsubscribeVision();
@@ -180,7 +189,32 @@ const AdminScreen = ({ navigation }) => {
                     </View>
                 </View>
 
-                {/* 0.5 SENSOR ARRAY (NEW) */}
+                {/* 0.2 MEDIA CONTROLLER (NEW) */}
+                <View style={[styles.inspectorCard, { borderLeftColor: '#9C27B0' }]}>
+                    <View style={styles.inspectorHeader}>
+                        <Ionicons name="musical-notes-outline" size={18} color="#9C27B0" />
+                        <Text style={[styles.inspectorTitle, { color: '#9C27B0' }]}>MEDIA SYSTEM</Text>
+                        <View style={[styles.statusBadge, { backgroundColor: mediaState.status === 'PLAYING' ? '#9C27B0' : '#333' }]}>
+                            <Text style={{ color: '#FFF', fontWeight: 'bold' }}>{mediaState.status}</Text>
+                        </View>
+                    </View>
+
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <View style={{ flex: 1 }}>
+                            <Text style={styles.label}>CURRENT TRACK</Text>
+                            <Text style={[styles.value, { color: '#E1BEE7', fontStyle: mediaState.track ? 'italic' : 'normal' }]}>
+                                {mediaState.track || "No media playing"}
+                            </Text>
+                        </View>
+                        {mediaState.status === 'PLAYING' && (
+                            <TouchableOpacity onPress={() => MediaController.pause()} style={[styles.miniBtn, { backgroundColor: '#7B1FA2' }]}>
+                                <Ionicons name="pause" size={16} color="#FFF" />
+                            </TouchableOpacity>
+                        )}
+                    </View>
+                </View>
+
+                {/* 0.5 SENSOR ARRAY */}
                 <View style={[styles.inspectorCard, { borderLeftColor: '#FFEB3B' }]}>
                     <View style={styles.inspectorHeader}>
                         <Ionicons name="pulse" size={18} color="#FFEB3B" />
