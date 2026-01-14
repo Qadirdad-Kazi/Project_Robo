@@ -77,6 +77,9 @@ const CameraViewComponent = ({ showFps = false, showDebugOverlay = true, enableS
 
             if (enableSocial && primaryIdentity && primaryIdentity.confidence > 0.85) {
                 // Pass Face Object for Emotion Analysis
+                const emotion = EmotionEngine.analyzeFace(primaryFace);
+                VisionDebugService.updateEmotion(emotion);
+
                 const greeting = GreetingEngine.evaluateGreeting(primaryIdentity, primaryFace);
                 if (greeting) {
                     VoiceService.speak(greeting);

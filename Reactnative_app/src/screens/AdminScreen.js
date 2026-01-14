@@ -329,8 +329,8 @@ const AdminScreen = ({ navigation }) => {
                             <Text style={styles.value}>{(visionStats.confidence * 100).toFixed(0)}%</Text>
                         </View>
                         <View style={styles.gridItem}>
-                            <Text style={styles.label}>FACES</Text>
-                            <Text style={styles.value}>{visionStats.faceCount}</Text>
+                            <Text style={styles.label}>EMOTION</Text>
+                            <Text style={[styles.value, { color: '#F48FB1' }]}>{visionStats.emotion || "NEUTRAL"}</Text>
                         </View>
                         <View style={styles.gridItem}>
                             <Text style={styles.label}>LAST GREETING</Text>

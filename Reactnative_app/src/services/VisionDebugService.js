@@ -10,13 +10,19 @@ class VisionDebugService {
             confidence: 0,
             identity: 'NONE',
             lastGreeting: 'None',
-            lastGreetingTime: 0
+            lastGreetingTime: 0,
+            emotion: 'NEUTRAL' // New
         };
         this.listeners = [];
     }
 
     update(newData) {
         this.data = { ...this.data, ...newData };
+        this.notify();
+    }
+
+    updateEmotion(emotion) {
+        this.data.emotion = emotion;
         this.notify();
     }
 
