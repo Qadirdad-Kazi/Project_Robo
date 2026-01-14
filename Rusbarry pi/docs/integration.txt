@@ -1,0 +1,10 @@
+# Integration Guide
+
+This file will contain detailed instructions on how to integrate the various modules (control, ai, interface).
+
+## Current Integration Status
+- [ ] Connect Motor Drivers to Control Logic
+- [ ] Interface AI outputs with Control inputs
+- [ ] Display AI status on Interface LCD
+
+Please update this file as integration steps are defined.

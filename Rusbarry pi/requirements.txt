@@ -1,0 +1,8 @@
+requests
+opencv-python
+face_recognition
+numpy
+SpeechRecognition
+pyaudio
+setuptools
+pywhatkit

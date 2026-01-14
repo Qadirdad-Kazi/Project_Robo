@@ -1,0 +1,13 @@
+# Module Descriptions
+
+## Control
+Low-level code for hardware interaction.
+
+## AI
+Logic for decision making and LLM handling.
+
+## Interface
+Code for displays and user inputs.
+
+## Utilities
+Helper code shared across modules.
