@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Button, Platform } from 'react-native';
-import { Camera, useCameraPermissions } from 'expo-camera';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 // import * as FaceDetector from 'expo-face-detector'; // Crashy in Expo Go if native module missing
 import { Ionicons } from '@expo/vector-icons';
 
@@ -93,9 +93,12 @@ const CameraViewComponent = ({ showFps = false, showDebugOverlay = true, enableS
 
             if (enableSocial && primaryIdentity && primaryIdentity.confidence > 0.85) {
                 // Pass Face Object for Emotion Analysis
+                /* 
+                // EmotionEngine currently relies on external simulation or specific face data
                 const emotion = EmotionEngine.analyzeFace(primaryFace);
                 VisionDebugService.updateEmotion(emotion);
-
+                */
+                // For now, we update simple greeting
                 const greeting = GreetingEngine.evaluateGreeting(primaryIdentity, primaryFace);
                 if (greeting) {
                     VoiceService.speak(greeting);
@@ -165,20 +168,13 @@ const CameraViewComponent = ({ showFps = false, showDebugOverlay = true, enableS
 
     return (
         <View style={styles.container}>
-            <Camera
+            <CameraView
                 style={styles.camera}
-                type={facing}
+                facing={facing}
                 ref={cameraRef}
                 onCameraReady={() => setCameraReady(true)}
                 onLayout={(event) => setCameraLayout(event.nativeEvent.layout)}
-                onFacesDetected={isFaceDetectorAvailable ? handleFacesDetected : undefined}
-                faceDetectorSettings={isFaceDetectorAvailable ? {
-                    mode: FaceDetector.FaceDetectorMode.fast,
-                    detectLandmarks: FaceDetector.FaceDetectorLandmarks.all,
-                    runClassifications: FaceDetector.FaceDetectorClassifications.none,
-                    minDetectionInterval: 200,
-                    tracking: true,
-                } : undefined}
+            // faceDetectorSettings removed as uncompatible with CameraView
             >
                 <View style={styles.overlay}>
                     {/* Navigation Tap Layer (Active in Admin Mode) */}
@@ -248,7 +244,7 @@ const CameraViewComponent = ({ showFps = false, showDebugOverlay = true, enableS
                         </View>
                     </View>
                 </View>
-            </Camera>
+            </CameraView>
         </View>
     );
 }

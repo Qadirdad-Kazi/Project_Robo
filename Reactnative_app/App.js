@@ -23,6 +23,7 @@ export default function App() {
           }}
         >
           <Stack.Screen name="User" component={UserScreen} />
+          <Stack.Screen name="Admin" component={AdminScreen} />
         </Stack.Navigator>
       </NavigationContainer>
       <Toast />
