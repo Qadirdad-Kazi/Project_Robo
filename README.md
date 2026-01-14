@@ -4,9 +4,11 @@ Welcome to **Project Robo**, a comprehensive robotics system that combines a pow
 
 ## 📂 Project Structure
 
+> **⚠️ IMPORTANT**: This repository contains two separate, independent projects for different hardware platforms. They are **MUTUALLY EXCLUSIVE** and **CANNOT** work together. Please choose the implementation that matches your hardware.
+
 This monorepo is divided into two main components:
 
-### 1. 📱 React Native App (`/Reactnative_app`)
+### 1. 📱 [React Native App](./Reactnative_app/README.md)
 The mobile command center for the robot.
 - **Features**: 
   - Voice Command Interface ("Move forward", "Dance", etc.)
@@ -14,8 +16,9 @@ The mobile command center for the robot.
   - Virtual Robot Simulator (for testing without hardware)
   - Biometric Security (FaceID/TouchID) for Admin access
 - **Tech Stack**: React Native, Expo, styling with standard stylesheets.
+- **[View Full App Documentation](./Reactnative_app/README.md)**
 
-### 2. 🧠 Raspberry Pi Controller (`/Rusbarry pi`)
+### 2. 🧠 [Raspberry Pi Controller](./Rusbarry%20pi/README.md)
 The brain of the physical robot.
 - **Features**:
   - Motor Control & Navigation Logic
@@ -23,6 +26,7 @@ The brain of the physical robot.
   - Sensor Integration
   - Voice Recognition (Native implementation)
 - **Tech Stack**: Python, OpenCV (assumed for vision), GPIO libraries.
+- **[View Full Hardware Documentation](./Rusbarry%20pi/README.md)**
 
 ---
 
@@ -52,8 +56,8 @@ python main.py
 
 ---
 
-## 🤝 Integration
-The React Native app communicates with the Raspberry Pi (currently simulated) via network requests. Ensure both devices are on the same Wi-Fi network for actual hardware control.
+## 🤝 Compatibility
+As noted above, these two systems are standalone. The React Native App is designed to run on an Android phone as a complete robot brain (using the phone's sensors), while the Raspberry Pi project is a traditional Linux-based robot controller. They do not communicate with each other.
 
 ## 📄 License
 [Add License Information Here]
