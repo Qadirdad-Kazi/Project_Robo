@@ -156,7 +156,7 @@ const AdminScreen = ({ navigation }) => {
                 <View style={{ width: 24 }} />
             </View>
 
-            <View style={styles.content}>
+            <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: 50 }}>
 
                 {/* 0. LIVE VISION FEED (ADMIN MODE) */}
                 <View style={styles.adminCameraContainer}>
@@ -474,7 +474,7 @@ const AdminScreen = ({ navigation }) => {
 
                 </View>
 
-            </View>
+            </ScrollView>
         </SafeAreaView>
     );
 };
