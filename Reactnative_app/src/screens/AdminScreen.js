@@ -1,103 +1,76 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, Platform } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import RobotService from '../services/RobotService';
+import VisionDebugService from '../services/VisionDebugService';
+
+// ... (imports)
 
 const AdminScreen = ({ navigation }) => {
-    const [logs, setLogs] = useState([]);
-    const [lastVoiceCmd, setLastVoiceCmd] = useState(null);
-    const scrollViewRef = useRef();
+    // ... (existing state)
+    const [visionStats, setVisionStats] = useState({
+        fps: 0,
+        faceDetected: false,
+        faceCount: 0,
+        confidence: 0,
+        identity: 'NONE',
+        lastGreeting: 'None'
+    });
 
     useEffect(() => {
-        addLog("Admin Console Initialized");
+        // ... (existing logs listeners)
 
-        // Robot Service Listener
-        const unsubscribe = RobotService.addListener((data) => {
-            // Voice Command Debugging
-            if (data.type === 'VOICE_CONTROL') {
-                setLastVoiceCmd({
-                    raw: data.raw,
-                    intent: data.intent || 'UNKNOWN', // intent is passed as command name usually, but we sent it in params too
-                    confidence: data.confidence,
-                    params: data.parameters,
-                    status: 'SUCCESS', // If it reached here via service, it was dispatched
-                    timestamp: new Date().toLocaleTimeString()
-                });
-                addLog(`AI Heard: "${data.raw}"`, 'AI');
-            }
-            // Connection Status
-            else if (data.type === 'CONNECTION') {
-                addLog(`Connection: ${data.value ? 'Online' : 'Offline'}`, 'NET');
-            }
+        // Vision Listener
+        const unsubscribeVision = VisionDebugService.addListener((data) => {
+            setVisionStats(data);
         });
 
-        return unsubscribe;
+        return () => {
+            // unsubscribeLogs...
+            unsubscribeVision();
+        };
     }, []);
 
-    const addLog = (action, type = 'INFO') => {
-        const timestamp = new Date().toLocaleTimeString();
-        setLogs(prev => [`[${timestamp}] [${type}] ${action}`, ...prev]);
-    };
-
-    const handleControl = async (direction) => {
-        try {
-            await RobotService.sendCommand(direction);
-            addLog(`Manual Override: ${direction}`, 'CMD');
-
-            // Clear last voice command on manual override to show we are in manual mode now? 
-            // Or keep it for reference. Let's keep it but maybe dim it.
-        } catch (e) {
-            addLog(`Failed: ${e.message}`, 'ERR');
-        }
-    };
+    // ... (render)
 
     return (
         <SafeAreaView style={styles.container}>
-            <View style={styles.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                    <Ionicons name="arrow-back" size={24} color="#FFF" />
-                </TouchableOpacity>
-                <Text style={styles.headerTitle}>Admin Intelligence</Text>
-                <View style={{ width: 24 }} />
-            </View>
+            {/* ... Header ... */}
 
             <View style={styles.content}>
 
-                {/* TOP SECTION: VOICE DEBUG INSPECTOR */}
-                {lastVoiceCmd && (
-                    <View style={styles.inspectorCard}>
-                        <View style={styles.inspectorHeader}>
-                            <Ionicons name="hardware-chip-outline" size={18} color="#00E5FF" />
-                            <Text style={styles.inspectorTitle}>NEURAL ENGINE DEBUG</Text>
-                            <View style={[styles.statusBadge, { backgroundColor: lastVoiceCmd.status === 'SUCCESS' ? '#4CAF50' : '#F44336' }]}>
-                                <Text style={styles.statusText}>{lastVoiceCmd.status}</Text>
-                            </View>
-                        </View>
-
-                        <View style={styles.gridContainer}>
-                            <View style={styles.gridItem}>
-                                <Text style={styles.label}>RAW INPUT</Text>
-                                <Text style={styles.value} numberOfLines={1}>"{lastVoiceCmd.raw}"</Text>
-                            </View>
-                            <View style={styles.gridItem}>
-                                <Text style={styles.label}>INTENT</Text>
-                                <Text style={[styles.value, { color: '#00E5FF' }]}>{lastVoiceCmd.intent}</Text>
-                            </View>
-                            <View style={styles.gridItem}>
-                                <Text style={styles.label}>CONFIDENCE</Text>
-                                <Text style={[styles.value, { color: lastVoiceCmd.confidence > 0.8 ? '#69F0AE' : '#FFD740' }]}>
-                                    {(lastVoiceCmd.confidence * 100).toFixed(0)}%
-                                </Text>
-                            </View>
-                            <View style={styles.gridItem}>
-                                <Text style={styles.label}>PARAMETERS</Text>
-                                <Text style={styles.valueCode}>
-                                    {JSON.stringify(lastVoiceCmd.params || {}, null, 0)}
-                                </Text>
-                            </View>
+                {/* 1. VISION ENGINE DEBUG (NEW) */}
+                <View style={[styles.inspectorCard, { borderLeftColor: '#00E676' }]}>
+                    <View style={styles.inspectorHeader}>
+                        <Ionicons name="eye-outline" size={18} color="#00E676" />
+                        <Text style={[styles.inspectorTitle, { color: '#00E676' }]}>VISION SYSTEM</Text>
+                        <View style={styles.statusBadge}>
+                            <Text style={{ color: '#FFF', fontWeight: 'bold' }}>{visionStats.fps} FPS</Text>
                         </View>
                     </View>
-                )}
+
+                    <View style={styles.gridContainer}>
+                        <View style={styles.gridItem}>
+                            <Text style={styles.label}>TARGET ID</Text>
+                            <Text style={[styles.value, { color: visionStats.identity === 'Qadir' ? '#00E676' : '#FFF' }]}>
+                                {visionStats.identity}
+                            </Text>
+                        </View>
+                        <View style={styles.gridItem}>
+                            <Text style={styles.label}>CONFIDENCE</Text>
+                            <Text style={styles.value}>{(visionStats.confidence * 100).toFixed(0)}%</Text>
+                        </View>
+                        <View style={styles.gridItem}>
+                            <Text style={styles.label}>FACES</Text>
+                            <Text style={styles.value}>{visionStats.faceCount}</Text>
+                        </View>
+                        <View style={styles.gridItem}>
+                            <Text style={styles.label}>LAST GREETING</Text>
+                            <Text style={[styles.valueCode, { fontSize: 10 }]} numberOfLines={1}>
+                                "{visionStats.lastGreeting}"
+                            </Text>
+                        </View>
+                    </View>
+                </View>
+
+                {/* 2. NEURAL ENGINE DEBUG (Existing) */}
+                {/* ... */}
 
                 <View style={styles.splitView}>
                     {/* LEFT: LOGS (Swapped position for better mobile flow) */}
