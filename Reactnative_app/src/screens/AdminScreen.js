@@ -11,12 +11,21 @@ import DecisionEngine from '../core/DecisionEngine';
 import MediaController from '../media/MediaController';
 import TaskScheduler from '../tasks/TaskScheduler';
 import PowerManager from '../system/PowerManager';
+import MotionSensor from '../sensors/MotionSensor';
+import LlamaService from '../services/LlamaService';
+import { TextInput } from 'react-native';
 
 const AdminScreen = ({ navigation }) => {
     const isFocused = useIsFocused();
     const [logs, setLogs] = useState([]);
     const [lastVoiceCmd, setLastVoiceCmd] = useState(null);
     const [distance, setDistance] = useState(200);
+    const [motion, setMotion] = useState({ accel: { x: 0, y: 0, z: 0 }, gyro: { x: 0, y: 0, z: 0 } });
+
+    // Llama State
+    const [aiPrompt, setAiPrompt] = useState("");
+    const [aiResponse, setAiResponse] = useState(null);
+    const [llamaStatus, setLlamaStatus] = useState('DISCONNECTED'); // DISCONNECTED, CHECKING, CONNECTED, ERROR
 
     const [cortexState, setCortexState] = useState({
         mode: 'OFFLINE',
@@ -42,6 +51,7 @@ const AdminScreen = ({ navigation }) => {
 
     useEffect(() => {
         addLog("Admin Console Initialized");
+        checkLlama(); // Auto-check local AI
 
         // Power Listener
         const unsubscribePower = PowerManager.addListener((state) => {
@@ -92,6 +102,10 @@ const AdminScreen = ({ navigation }) => {
             setVisionStats(data);
         });
 
+        // Motion Listener
+        const onMotion = (data) => setMotion(data);
+        MotionSensor.addListener('update', onMotion);
+
         return () => {
             unsubscribePower();
             unsubscribeCortex();
@@ -100,8 +114,30 @@ const AdminScreen = ({ navigation }) => {
             DistanceSensor.removeListener('distance', onDistance);
             unsubscribeRobot();
             unsubscribeVision();
+            MotionSensor.removeListener('update', onMotion);
         };
     }, []);
+
+    const checkLlama = async () => {
+        setLlamaStatus('CHECKING');
+        const connected = await LlamaService.checkConnection();
+        setLlamaStatus(connected ? 'CONNECTED' : 'OFFLINE');
+        if (connected) addLog("Llama 3.2 Brain Linked", "NET");
+    };
+
+    const handleLlamaQuery = async () => {
+        if (!aiPrompt.trim()) return;
+
+        const prompt = aiPrompt; // Capture current
+        setAiPrompt(""); // Clear input
+        addLog(`Evaluating: "${prompt}"`, "AI");
+        setLlamaStatus('THINKING');
+
+        const response = await LlamaService.query(prompt);
+        setAiResponse({ prompt, answer: response });
+        setLlamaStatus('CONNECTED');
+        addLog("Response Received", "AI");
+    };
 
     const addLog = (action, type = 'INFO') => {
         const timestamp = new Date().toLocaleTimeString();
@@ -280,7 +316,7 @@ const AdminScreen = ({ navigation }) => {
                 <View style={[styles.inspectorCard, { borderLeftColor: '#FFEB3B' }]}>
                     <View style={styles.inspectorHeader}>
                         <Ionicons name="pulse" size={18} color="#FFEB3B" />
-                        <Text style={[styles.inspectorTitle, { color: '#FFEB3B' }]}>SENSOR ARRAY</Text>
+                        <Text style={[styles.inspectorTitle, { color: '#FFEB3B' }]}>RANGE SENSOR (SIMULATED)</Text>
                         <View style={[styles.statusBadge, { backgroundColor: distance < 30 ? '#D32F2F' : '#333' }]}>
                             <Text style={{ color: '#FFF', fontWeight: 'bold' }}>
                                 {distance < 30 ? 'CRITICAL' : 'NOMINAL'}
@@ -307,6 +343,36 @@ const AdminScreen = ({ navigation }) => {
                     </View>
                 </View>
 
+                {/* 0.6 MOTION SENSOR (REAL) */}
+                <View style={[styles.inspectorCard, { borderLeftColor: '#03A9F4' }]}>
+                    <View style={styles.inspectorHeader}>
+                        <Ionicons name="compass-outline" size={18} color="#03A9F4" />
+                        <Text style={[styles.inspectorTitle, { color: '#03A9F4' }]}>INERTIAL MEASUREMENT UNIT (IMU)</Text>
+                        <View style={[styles.statusBadge, { backgroundColor: '#333' }]}>
+                            <Text style={{ color: '#03A9F4', fontWeight: 'bold' }}>ACTIVE</Text>
+                        </View>
+                    </View>
+
+                    <View style={styles.gridContainer}>
+                        <View style={styles.gridItem}>
+                            <Text style={styles.label}>ACCELERATION (G)</Text>
+                            <Text style={styles.valueCode}>
+                                X: {motion.accel.x.toFixed(2)}{'\n'}
+                                Y: {motion.accel.y.toFixed(2)}{'\n'}
+                                Z: {motion.accel.z.toFixed(2)}
+                            </Text>
+                        </View>
+                        <View style={styles.gridItem}>
+                            <Text style={styles.label}>GYROSCOPE (R/S)</Text>
+                            <Text style={styles.valueCode}>
+                                X: {motion.gyro.x.toFixed(2)}{'\n'}
+                                Y: {motion.gyro.y.toFixed(2)}{'\n'}
+                                Z: {motion.gyro.z.toFixed(2)}
+                            </Text>
+                        </View>
+                    </View>
+                </View>
+
                 {/* 1. VISION ENGINE DEBUG */}
                 <View style={[styles.inspectorCard, { borderLeftColor: '#00E676' }]}>
                     <View style={styles.inspectorHeader}>
@@ -329,7 +395,7 @@ const AdminScreen = ({ navigation }) => {
                             <Text style={styles.value}>{(visionStats.confidence * 100).toFixed(0)}%</Text>
                         </View>
                         <View style={styles.gridItem}>
-                            <Text style={styles.label}>EMOTION</Text>
+                            <Text style={styles.label}>EMOTION (BETA)</Text>
                             <Text style={[styles.value, { color: '#F48FB1' }]}>{visionStats.emotion || "NEUTRAL"}</Text>
                         </View>
                         <View style={styles.gridItem}>
@@ -379,12 +445,12 @@ const AdminScreen = ({ navigation }) => {
                     <View style={styles.inspectorCard}>
                         <View style={styles.inspectorHeader}>
                             <Ionicons name="hardware-chip-outline" size={18} color="#00E5FF" />
-                            <Text style={styles.inspectorTitle}>NEURAL ENGINE DEBUG</Text>
+                            <Text style={styles.inspectorTitle}>VOICE PROCESSOR</Text>
                             <View style={[styles.statusBadge, { backgroundColor: lastVoiceCmd.status === 'SUCCESS' ? '#4CAF50' : '#F44336' }]}>
                                 <Text style={styles.statusText}>{lastVoiceCmd.status}</Text>
                             </View>
                         </View>
-
+                        {/* ... Existing Voice Debug Content ... */}
                         <View style={styles.gridContainer}>
                             <View style={styles.gridItem}>
                                 <Text style={styles.label}>RAW INPUT</Text>
@@ -394,21 +460,56 @@ const AdminScreen = ({ navigation }) => {
                                 <Text style={styles.label}>INTENT</Text>
                                 <Text style={[styles.value, { color: '#00E5FF' }]}>{lastVoiceCmd.intent}</Text>
                             </View>
-                            <View style={styles.gridItem}>
-                                <Text style={styles.label}>CONFIDENCE</Text>
-                                <Text style={[styles.value, { color: lastVoiceCmd.confidence > 0.8 ? '#69F0AE' : '#FFD740' }]}>
-                                    {(lastVoiceCmd.confidence * 100).toFixed(0)}%
-                                </Text>
-                            </View>
-                            <View style={styles.gridItem}>
-                                <Text style={styles.label}>PARAMETERS</Text>
-                                <Text style={styles.valueCode}>
-                                    {JSON.stringify(lastVoiceCmd.params || {}, null, 0)}
-                                </Text>
-                            </View>
                         </View>
                     </View>
                 )}
+
+                {/* 4. LLAMA NEURAL BRIDGE (LOCAL AI) */}
+                <View style={[styles.inspectorCard, { borderLeftColor: '#7C4DFF' }]}>
+                    <View style={styles.inspectorHeader}>
+                        <Ionicons name="brain-outline" size={18} color="#7C4DFF" />
+                        <Text style={[styles.inspectorTitle, { color: '#7C4DFF' }]}>NEURAL BRIDGE (LLAMA 3.2)</Text>
+                        <View style={[styles.statusBadge, { backgroundColor: llamaStatus === 'CONNECTED' ? '#4CAF50' : llamaStatus === 'THINKING' ? '#FFD740' : '#D32F2F' }]}>
+                            <Text style={styles.statusText}>{llamaStatus}</Text>
+                        </View>
+                    </View>
+
+                    {/* Chat Response Area */}
+                    {aiResponse && (
+                        <View style={{ backgroundColor: '#222', padding: 10, borderRadius: 6, marginBottom: 10 }}>
+                            <Text style={{ color: '#AAA', fontSize: 10, marginBottom: 4 }}>Q: {aiResponse.prompt}</Text>
+                            <Text style={{ color: '#E0E0E0', fontSize: 13, fontStyle: 'italic' }}>
+                                " {aiResponse.answer} "
+                            </Text>
+                        </View>
+                    )}
+
+                    {/* Input Area */}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                        <TextInput
+                            style={{
+                                flex: 1,
+                                backgroundColor: '#111',
+                                color: '#FFF',
+                                padding: 8,
+                                borderRadius: 6,
+                                borderWidth: 1,
+                                borderColor: '#333'
+                            }}
+                            placeholder="Send command to Llama..."
+                            placeholderTextColor="#555"
+                            value={aiPrompt}
+                            onChangeText={setAiPrompt}
+                            onSubmitEditing={handleLlamaQuery}
+                        />
+                        <TouchableOpacity
+                            onPress={handleLlamaQuery}
+                            style={{ backgroundColor: '#7C4DFF', padding: 10, borderRadius: 6 }}
+                        >
+                            <Ionicons name={llamaStatus === 'THINKING' ? "hourglass-outline" : "send"} size={18} color="#FFF" />
+                        </TouchableOpacity>
+                    </View>
+                </View>
 
                 <View style={styles.splitView}>
                     {/* LEFT: LOGS */}

@@ -1,6 +1,7 @@
 // PowerManager.js
 // Central System for Energy Management
 
+import * as Battery from 'expo-battery';
 import RobotService from '../services/RobotService';
 import VoiceService from '../services/VoiceService';
 
@@ -18,8 +19,35 @@ class PowerManager {
         this.mode = POWER_MODES.HIGH_PERF;
         this.listeners = [];
 
-        // Subscribe to Robot Service Battery Updates
+        // Initialize Real Battery Monitoring
+        this.initBatteryMonitor();
+
+        // Subscribe to Robot Service Battery Updates (Optional override if external robot connected)
         RobotService.addListener(this.handleRobotUpdate.bind(this));
+    }
+
+    async initBatteryMonitor() {
+        try {
+            const level = await Battery.getBatteryLevelAsync();
+            const state = await Battery.getBatteryStateAsync();
+            this.updateBattery(Math.floor(level * 100));
+            this.isCharging = (state === Battery.BatteryState.CHARGING || state === Battery.BatteryState.FULL);
+            this.notifyListeners();
+
+            // Listener for level changes
+            this.batterySubscription = Battery.addBatteryLevelListener(({ batteryLevel }) => {
+                this.updateBattery(Math.floor(batteryLevel * 100));
+            });
+
+            // Listener for state changes (charging)
+            this.chargingSubscription = Battery.addBatteryStateListener(({ batteryState }) => {
+                this.isCharging = (batteryState === Battery.BatteryState.CHARGING || batteryState === Battery.BatteryState.FULL);
+                this.notifyListeners();
+            });
+
+        } catch (e) {
+            console.warn("PowerManager: Failed to access native battery info (Simulating 100%)", e);
+        }
     }
 
     addListener(callback) {
@@ -43,8 +71,11 @@ class PowerManager {
     }
 
     handleRobotUpdate(data) {
-        if (data.type === 'BATTERY') {
-            this.updateBattery(data.value);
+        // If we have an external robot connected, we might want to prioritize ITS battery
+        // For now, we assume the Phone IS the Robot Brain.
+        if (data.type === 'BATTERY_EXTERNAL') {
+            // Optional: Handle external battery differently
+            // this.updateBattery(data.value);
         }
     }
 
