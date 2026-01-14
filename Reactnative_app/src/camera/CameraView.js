@@ -9,7 +9,7 @@ import GreetingEngine from '../ai-behavior/GreetingEngine';
 import VoiceService from '../services/VoiceService';
 import VisionDebugService from '../services/VisionDebugService';
 
-const CameraViewComponent = ({ showFps = false, onFrame }) => {
+const CameraViewComponent = ({ showFps = false, showDebugOverlay = true, enableSocial = true, onFrame }) => {
     const [facing, setFacing] = useState(Camera.Constants.Type.back);
     const [permission, requestPermission] = Camera.useCameraPermissions();
     const [cameraReady, setCameraReady] = useState(false);
@@ -59,7 +59,7 @@ const CameraViewComponent = ({ showFps = false, onFrame }) => {
             });
 
             // Social Logic on Primary Face
-            if (primaryIdentity && primaryIdentity.confidence > 0.85) {
+            if (enableSocial && primaryIdentity && primaryIdentity.confidence > 0.85) {
                 const greeting = GreetingEngine.evaluateGreeting(primaryIdentity);
                 if (greeting) {
                     VoiceService.speak(greeting);
@@ -149,43 +149,45 @@ const CameraViewComponent = ({ showFps = false, onFrame }) => {
                 }}
             >
                 <View style={styles.overlay}>
-                    {/* Face Bounding Boxes */}
-                    <View style={StyleSheet.absoluteFill}>
-                        {faces.map((face, index) => {
-                            const isOwner = face.identity?.id === 'OWNER_001';
-                            const confidence = face.identity?.confidence || 0;
-                            const borderColor = isOwner ? '#00E676' : '#00E5FF'; // Green for Owner, Blue for guest
+                    {/* Face Bounding Boxes (Debug Only) */}
+                    {showDebugOverlay && (
+                        <View style={StyleSheet.absoluteFill}>
+                            {faces.map((face, index) => {
+                                const isOwner = face.identity?.id === 'OWNER_001';
+                                const confidence = face.identity?.confidence || 0;
+                                const borderColor = isOwner ? '#00E676' : '#00E5FF'; // Green for Owner, Blue for guest
 
-                            return (
-                                <View
-                                    key={index}
-                                    style={[
-                                        styles.faceBox,
-                                        {
-                                            left: face.bounds.origin.x,
-                                            top: face.bounds.origin.y,
-                                            width: face.bounds.size.width,
-                                            height: face.bounds.size.height,
-                                            borderColor: borderColor,
-                                            backgroundColor: isOwner ? 'rgba(0, 230, 118, 0.1)' : 'rgba(0, 229, 255, 0.1)'
-                                        }
-                                    ]}
-                                >
-                                    <View style={styles.landmarkContainer}>
-                                        {face.leftEyePosition && <View style={[styles.landmark, { left: face.leftEyePosition.x - face.bounds.origin.x, top: face.leftEyePosition.y - face.bounds.origin.y }]} />}
-                                        {face.rightEyePosition && <View style={[styles.landmark, { left: face.rightEyePosition.x - face.bounds.origin.x, top: face.rightEyePosition.y - face.bounds.origin.y }]} />}
-                                        {face.noseBasePosition && <View style={[styles.landmark, { left: face.noseBasePosition.x - face.bounds.origin.x, top: face.noseBasePosition.y - face.bounds.origin.y, backgroundColor: 'yellow' }]} />}
-                                    </View>
+                                return (
+                                    <View
+                                        key={index}
+                                        style={[
+                                            styles.faceBox,
+                                            {
+                                                left: face.bounds.origin.x,
+                                                top: face.bounds.origin.y,
+                                                width: face.bounds.size.width,
+                                                height: face.bounds.size.height,
+                                                borderColor: borderColor,
+                                                backgroundColor: isOwner ? 'rgba(0, 230, 118, 0.1)' : 'rgba(0, 229, 255, 0.1)'
+                                            }
+                                        ]}
+                                    >
+                                        <View style={styles.landmarkContainer}>
+                                            {face.leftEyePosition && <View style={[styles.landmark, { left: face.leftEyePosition.x - face.bounds.origin.x, top: face.leftEyePosition.y - face.bounds.origin.y }]} />}
+                                            {face.rightEyePosition && <View style={[styles.landmark, { left: face.rightEyePosition.x - face.bounds.origin.x, top: face.rightEyePosition.y - face.bounds.origin.y }]} />}
+                                            {face.noseBasePosition && <View style={[styles.landmark, { left: face.noseBasePosition.x - face.bounds.origin.x, top: face.noseBasePosition.y - face.bounds.origin.y, backgroundColor: 'yellow' }]} />}
+                                        </View>
 
-                                    <View style={[styles.faceLabelContainer, { backgroundColor: isOwner ? 'rgba(0, 230, 118, 0.8)' : 'rgba(0,0,0,0.6)' }]}>
-                                        <Text style={styles.faceLabel}>
-                                            {isOwner ? `OWNER: ${face.identity.name} (${(confidence * 100).toFixed(0)}%)` : 'UNKNOWN TARGET'}
-                                        </Text>
+                                        <View style={[styles.faceLabelContainer, { backgroundColor: isOwner ? 'rgba(0, 230, 118, 0.8)' : 'rgba(0,0,0,0.6)' }]}>
+                                            <Text style={styles.faceLabel}>
+                                                {isOwner ? `OWNER: ${face.identity.name} (${(confidence * 100).toFixed(0)}%)` : 'UNKNOWN TARGET'}
+                                            </Text>
+                                        </View>
                                     </View>
-                                </View>
-                            )
-                        })}
-                    </View>
+                                )
+                            })}
+                        </View>
+                    )}
 
                     <View style={styles.uiLayer}>
                         {/* Controls */}
@@ -199,10 +201,12 @@ const CameraViewComponent = ({ showFps = false, onFrame }) => {
                                 <View style={styles.captureBtnInner} />
                             </TouchableOpacity>
 
-                            {/* Register Face Button */}
-                            <TouchableOpacity style={styles.button} onPress={handleRegisterOwner}>
-                                <Ionicons name="person-add-outline" size={28} color="white" />
-                            </TouchableOpacity>
+                            {/* Register Face Button (Only if Debug Overlay is ON, i.e. Admin/Training Mode) */}
+                            {showDebugOverlay && (
+                                <TouchableOpacity style={styles.button} onPress={handleRegisterOwner}>
+                                    <Ionicons name="person-add-outline" size={28} color="white" />
+                                </TouchableOpacity>
+                            )}
                         </View>
                     </View>
                 </View>

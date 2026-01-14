@@ -1,12 +1,101 @@
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, SafeAreaView, Platform, Alert } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useIsFocused } from '@react-navigation/native'; // Ensure camera pauses when not focused
+
+import AuthService from '../services/AuthService';
+import VoiceService from '../services/VoiceService';
+import RobotService from '../services/RobotService';
+import VoiceController from '../controllers/VoiceController'; // Pipeline
+
+import RobotStatus from '../components/RobotStatus';
+import RobotActionSimulator from '../components/RobotActionSimulator';
 import CameraViewComponent from '../camera/CameraView';
 
-// ... (existing imports)
+import { Audio } from 'expo-av';
 
 const UserScreen = ({ navigation }) => {
-    // ... (existing state)
+    const isFocused = useIsFocused();
+    const [isListening, setIsListening] = useState(false);
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [voiceText, setVoiceText] = useState('');
+    const [battery, setBattery] = useState(100);
+    const [isConnected, setIsConnected] = useState(false);
+    const [simState, setSimState] = useState(null);
     const [isCameraActive, setIsCameraActive] = useState(true);
 
-    // ... (existing functions)
+    useEffect(() => {
+        // 1. Robot Status Listeners
+        const unsubscribeRobot = RobotService.addListener((data) => {
+            if (data.type === 'BATTERY') setBattery(data.value);
+            if (data.type === 'CONNECTION') setIsConnected(data.value);
+            if (data.type === 'SIM_STATE') setSimState(data.value);
+        });
+
+        // 2. Voice Listeners
+        const onSpeechStart = () => setIsListening(true);
+        const onSpeechEnd = () => setIsListening(false);
+        const onSpeechPartial = (e) => setVoiceText(e.value);
+
+        const onSpeechResults = async (e) => {
+            setIsListening(false);
+            if (e.value) {
+                setVoiceText(e.value);
+                processCommand(e.value);
+            }
+        };
+
+        VoiceService.on('start', onSpeechStart);
+        VoiceService.on('end', onSpeechEnd);
+        VoiceService.on('partial_result', onSpeechPartial);
+        VoiceService.on('final_result', onSpeechResults);
+
+        // Check perms
+        checkPermissions();
+
+        return () => {
+            unsubscribeRobot();
+            VoiceService.off('start', onSpeechStart);
+            VoiceService.off('end', onSpeechEnd);
+            VoiceService.off('partial_result', onSpeechPartial);
+            VoiceService.off('final_result', onSpeechResults);
+        };
+    }, []);
+
+    const checkPermissions = async () => {
+        const { status } = await Audio.requestPermissionsAsync();
+        if (status !== 'granted') {
+            Alert.alert('Permission needed', 'Microphone access is required for voice commands.');
+        }
+    };
+
+    const processCommand = async (text) => {
+        setIsProcessing(true);
+        // Invoke the Voice Pipeline
+        await VoiceController.handleVoiceCommand(text);
+        setIsProcessing(false);
+
+        // Clear text after a delay
+        setTimeout(() => setVoiceText(''), 3000);
+    };
+
+    const toggleListening = async () => {
+        if (isListening) {
+            await VoiceService.stopListening();
+        } else {
+            setVoiceText('Listening...');
+            await VoiceService.startListening();
+        }
+    };
+
+    const handleAdminAuth = async () => {
+        const authenticated = await AuthService.authenticateAdmin();
+        if (authenticated) {
+            navigation.navigate('Admin');
+        } else {
+            Alert.alert("Access Denied", "Biometric authentication failed.");
+        }
+    };
 
     return (
         <SafeAreaView style={styles.container}>
@@ -28,17 +117,19 @@ const UserScreen = ({ navigation }) => {
                         <RobotStatus batteryLevel={battery} isConnected={isConnected} />
                     </View>
 
-                    {/* Camera Feed */}
+                    {/* Camera Feed - Only active when focused */}
                     <View style={styles.cameraContainer}>
-                        {isCameraActive && (
+                        {(isCameraActive && isFocused) && (
                             <CameraViewComponent
                                 showFps={false}
+                                showDebugOverlay={false}
+                                enableSocial={true}
                                 onFrame={(photo) => console.log("Frame captured", photo.uri)}
                             />
                         )}
                     </View>
 
-                    {/* Robot Sim - Made smaller or collapsible? Keeping as is for now */}
+                    {/* Robot Sim */}
                     <View style={styles.simContainer}>
                         <RobotActionSimulator simState={simState} />
                     </View>
@@ -46,7 +137,6 @@ const UserScreen = ({ navigation }) => {
 
                 {/* Bottom Controls (Fixed) */}
                 <View style={styles.bottomControls}>
-                    {/* Voice Feedback Area merged here to save space */}
                     <Text style={styles.transcriptionText}>
                         {voiceText || (isListening ? "Listening..." : "Ready")}
                     </Text>
@@ -79,7 +169,6 @@ const UserScreen = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-    // ... (keep existing container/header)
     container: {
         flex: 1,
         backgroundColor: '#121212',
@@ -114,7 +203,7 @@ const styles = StyleSheet.create({
         marginBottom: 10,
     },
     cameraContainer: {
-        height: 240, // Fixed height for camera
+        height: 240,
         borderRadius: 12,
         overflow: 'hidden',
         marginBottom: 10,
@@ -124,12 +213,11 @@ const styles = StyleSheet.create({
     },
     simContainer: {
         marginBottom: 10,
-        // Make sim slightly more compact if needed
     },
     bottomControls: {
         alignItems: 'center',
         paddingBottom: 10,
-        backgroundColor: '#121212', // Opaque bg to cover scroll
+        backgroundColor: '#121212',
     },
     transcriptionText: {
         color: '#FFF',
@@ -140,7 +228,7 @@ const styles = StyleSheet.create({
         height: 24
     },
     micButton: {
-        width: 80, // Smaller mic button to fit everything
+        width: 80,
         height: 80,
         borderRadius: 40,
         backgroundColor: '#007AFF',

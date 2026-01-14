@@ -1,9 +1,16 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, Platform, Alert } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useIsFocused } from '@react-navigation/native';
+import RobotService from '../services/RobotService';
 import VisionDebugService from '../services/VisionDebugService';
-
-// ... (imports)
+import FaceRecognitionService from '../services/FaceRecognitionService';
+import CameraViewComponent from '../camera/CameraView';
 
 const AdminScreen = ({ navigation }) => {
-    // ... (existing state)
+    const isFocused = useIsFocused();
+    const [logs, setLogs] = useState([]);
+    const [lastVoiceCmd, setLastVoiceCmd] = useState(null);
     const [visionStats, setVisionStats] = useState({
         fps: 0,
         faceDetected: false,
@@ -13,8 +20,28 @@ const AdminScreen = ({ navigation }) => {
         lastGreeting: 'None'
     });
 
+    const scrollViewRef = useRef();
+
     useEffect(() => {
-        // ... (existing logs listeners)
+        addLog("Admin Console Initialized");
+
+        // Robot Service Listener
+        const unsubscribeRobot = RobotService.addListener((data) => {
+            if (data.type === 'VOICE_CONTROL') {
+                setLastVoiceCmd({
+                    raw: data.raw,
+                    intent: data.intent || 'UNKNOWN',
+                    confidence: data.confidence,
+                    params: data.parameters,
+                    status: 'SUCCESS',
+                    timestamp: new Date().toLocaleTimeString()
+                });
+                addLog(`AI Heard: "${data.raw}"`, 'AI');
+            }
+            else if (data.type === 'CONNECTION') {
+                addLog(`Connection: ${data.value ? 'Online' : 'Offline'}`, 'NET');
+            }
+        });
 
         // Vision Listener
         const unsubscribeVision = VisionDebugService.addListener((data) => {
@@ -22,20 +49,70 @@ const AdminScreen = ({ navigation }) => {
         });
 
         return () => {
-            // unsubscribeLogs...
+            unsubscribeRobot();
             unsubscribeVision();
         };
     }, []);
 
-    // ... (render)
+    const addLog = (action, type = 'INFO') => {
+        const timestamp = new Date().toLocaleTimeString();
+        setLogs(prev => [`[${timestamp}] [${type}] ${action}`, ...prev]);
+    };
+
+    const handleControl = async (direction) => {
+        try {
+            await RobotService.sendCommand(direction);
+            addLog(`Manual Override: ${direction}`, 'CMD');
+        } catch (e) {
+            addLog(`Failed: ${e.message}`, 'ERR');
+        }
+    };
+
+    const handlePurgeBiometrics = () => {
+        Alert.alert(
+            "Purge Biometrics",
+            "Are you sure? This will delete the Owner Face Profile locally.",
+            [
+                { text: "Cancel", style: 'cancel' },
+                {
+                    text: "Delete",
+                    style: 'destructive',
+                    onPress: () => {
+                        FaceRecognitionService.clearOwnerProfile();
+                        addLog("Biometrics Purged", "SEC");
+                    }
+                }
+            ]
+        );
+    };
 
     return (
         <SafeAreaView style={styles.container}>
-            {/* ... Header ... */}
+            <View style={styles.header}>
+                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+                    <Ionicons name="arrow-back" size={24} color="#FFF" />
+                </TouchableOpacity>
+                <Text style={styles.headerTitle}>Admin Intelligence</Text>
+                <View style={{ width: 24 }} />
+            </View>
 
             <View style={styles.content}>
 
-                {/* 1. VISION ENGINE DEBUG (NEW) */}
+                {/* 0. LIVE VISION FEED (ADMIN MODE) */}
+                <View style={styles.adminCameraContainer}>
+                    <Text style={styles.sectionLabel}>RAW VISION FEED</Text>
+                    <View style={styles.cameraWrapper}>
+                        {isFocused && (
+                            <CameraViewComponent
+                                showFps={true}
+                                showDebugOverlay={true}
+                                enableSocial={false} // Silent mode for admin
+                            />
+                        )}
+                    </View>
+                </View>
+
+                {/* 1. VISION ENGINE DEBUG */}
                 <View style={[styles.inspectorCard, { borderLeftColor: '#00E676' }]}>
                     <View style={styles.inspectorHeader}>
                         <Ionicons name="eye-outline" size={18} color="#00E676" />
@@ -69,11 +146,77 @@ const AdminScreen = ({ navigation }) => {
                     </View>
                 </View>
 
-                {/* 2. NEURAL ENGINE DEBUG (Existing) */}
-                {/* ... */}
+                {/* 2. PRIVACY & SECURITY CONTROLS */}
+                <View style={[styles.inspectorCard, { borderLeftColor: '#F44336' }]}>
+                    <View style={styles.inspectorHeader}>
+                        <Ionicons name="shield-checkmark-outline" size={18} color="#F44336" />
+                        <Text style={[styles.inspectorTitle, { color: '#F44336' }]}>PRIVACY & SECURITY</Text>
+                        <View style={[styles.statusBadge, { backgroundColor: '#333' }]}>
+                            <Text style={{ color: '#AAA', fontSize: 10 }}>LOCAL ONLY</Text>
+                        </View>
+                    </View>
+
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-around', marginTop: 10 }}>
+                        <TouchableOpacity
+                            style={[styles.actionBtn, { backgroundColor: '#D32F2F' }]}
+                            onPress={handlePurgeBiometrics}
+                        >
+                            <Ionicons name="trash-outline" size={20} color="#FFF" />
+                            <Text style={styles.actionBtnText}>PURGE FACE DATA</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={[styles.actionBtn, { backgroundColor: '#FFA000' }]}
+                            onPress={() => {
+                                FaceRecognitionService.clearOwnerProfile();
+                                navigation.navigate('User');
+                                addLog("Initiated Retraining", "SEC");
+                            }}
+                        >
+                            <Ionicons name="scan-outline" size={20} color="#FFF" />
+                            <Text style={styles.actionBtnText}>RE-TRAIN OWNER</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+
+                {/* 3. NEURAL ENGINE DEBUG */}
+                {lastVoiceCmd && (
+                    <View style={styles.inspectorCard}>
+                        <View style={styles.inspectorHeader}>
+                            <Ionicons name="hardware-chip-outline" size={18} color="#00E5FF" />
+                            <Text style={styles.inspectorTitle}>NEURAL ENGINE DEBUG</Text>
+                            <View style={[styles.statusBadge, { backgroundColor: lastVoiceCmd.status === 'SUCCESS' ? '#4CAF50' : '#F44336' }]}>
+                                <Text style={styles.statusText}>{lastVoiceCmd.status}</Text>
+                            </View>
+                        </View>
+
+                        <View style={styles.gridContainer}>
+                            <View style={styles.gridItem}>
+                                <Text style={styles.label}>RAW INPUT</Text>
+                                <Text style={styles.value} numberOfLines={1}>"{lastVoiceCmd.raw}"</Text>
+                            </View>
+                            <View style={styles.gridItem}>
+                                <Text style={styles.label}>INTENT</Text>
+                                <Text style={[styles.value, { color: '#00E5FF' }]}>{lastVoiceCmd.intent}</Text>
+                            </View>
+                            <View style={styles.gridItem}>
+                                <Text style={styles.label}>CONFIDENCE</Text>
+                                <Text style={[styles.value, { color: lastVoiceCmd.confidence > 0.8 ? '#69F0AE' : '#FFD740' }]}>
+                                    {(lastVoiceCmd.confidence * 100).toFixed(0)}%
+                                </Text>
+                            </View>
+                            <View style={styles.gridItem}>
+                                <Text style={styles.label}>PARAMETERS</Text>
+                                <Text style={styles.valueCode}>
+                                    {JSON.stringify(lastVoiceCmd.params || {}, null, 0)}
+                                </Text>
+                            </View>
+                        </View>
+                    </View>
+                )}
 
                 <View style={styles.splitView}>
-                    {/* LEFT: LOGS (Swapped position for better mobile flow) */}
+                    {/* LEFT: LOGS */}
                     <View style={styles.debugSection}>
                         <Text style={styles.sectionTitle}>System Stream</Text>
                         <View style={styles.logContainer}>
@@ -87,16 +230,17 @@ const AdminScreen = ({ navigation }) => {
                                     const isError = log.includes('[ERR]');
                                     const isCmd = log.includes('[CMD]');
                                     const isAI = log.includes('[AI]');
+                                    const isNet = log.includes('[NET]');
+                                    const isSec = log.includes('[SEC]');
+
+                                    const colorStyle = isError ? styles.logError :
+                                        isCmd ? styles.logCmd :
+                                            isAI ? styles.logAI :
+                                                isNet ? styles.logNet :
+                                                    isSec ? styles.logSec : {};
+
                                     return (
-                                        <Text
-                                            key={index}
-                                            style={[
-                                                styles.logText,
-                                                isError && styles.logError,
-                                                isCmd && styles.logCmd,
-                                                isAI && styles.logAI
-                                            ]}
-                                        >
+                                        <Text key={index} style={[styles.logText, colorStyle]}>
                                             {log}
                                         </Text>
                                     );
@@ -105,44 +249,28 @@ const AdminScreen = ({ navigation }) => {
                         </View>
                     </View>
 
-                    {/* RIGHT (or Bottom): CONTROLS */}
+                    {/* RIGHT: CONTROLS */}
                     <View style={styles.controlsSection}>
                         <Text style={styles.sectionTitle}>Manual Override</Text>
                         <View style={styles.dpadContainer}>
                             <View style={styles.dpadRow}>
-                                <TouchableOpacity
-                                    style={styles.controlBtn}
-                                    onPress={() => handleControl('FORWARD')}
-                                    activeOpacity={0.6}
-                                >
+                                <TouchableOpacity style={styles.controlBtn} onPress={() => handleControl('FORWARD')}>
                                     <Ionicons name="chevron-up" size={28} color="#FFF" />
                                 </TouchableOpacity>
                             </View>
                             <View style={styles.dpadRow}>
-                                <TouchableOpacity
-                                    style={styles.controlBtn}
-                                    onPress={() => handleControl('LEFT')}
-                                    activeOpacity={0.6}
-                                >
+                                <TouchableOpacity style={styles.controlBtn} onPress={() => handleControl('LEFT')}>
                                     <Ionicons name="chevron-back" size={28} color="#FFF" />
                                 </TouchableOpacity>
                                 <View style={styles.centerSpacer}>
                                     <Ionicons name="radio-outline" size={20} color="#555" />
                                 </View>
-                                <TouchableOpacity
-                                    style={styles.controlBtn}
-                                    onPress={() => handleControl('RIGHT')}
-                                    activeOpacity={0.6}
-                                >
+                                <TouchableOpacity style={styles.controlBtn} onPress={() => handleControl('RIGHT')}>
                                     <Ionicons name="chevron-forward" size={28} color="#FFF" />
                                 </TouchableOpacity>
                             </View>
                             <View style={styles.dpadRow}>
-                                <TouchableOpacity
-                                    style={styles.controlBtn}
-                                    onPress={() => handleControl('BACKWARD')}
-                                    activeOpacity={0.6}
-                                >
+                                <TouchableOpacity style={styles.controlBtn} onPress={() => handleControl('BACKWARD')}>
                                     <Ionicons name="chevron-down" size={28} color="#FFF" />
                                 </TouchableOpacity>
                             </View>
@@ -182,6 +310,32 @@ const styles = StyleSheet.create({
         flex: 1,
         paddingTop: 10,
     },
+    // New Admin Camera Styles
+    adminCameraContainer: {
+        marginHorizontal: 15,
+        marginBottom: 10,
+        height: 250,
+        backgroundColor: '#000',
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: '#333',
+        overflow: 'hidden'
+    },
+    sectionLabel: {
+        position: 'absolute',
+        top: 5,
+        left: 10,
+        zIndex: 10,
+        fontSize: 10,
+        color: 'rgba(255,255,255,0.5)',
+        fontWeight: 'bold',
+        textTransform: 'uppercase'
+    },
+    cameraWrapper: {
+        flex: 1
+    },
+
+    // Cards
     inspectorCard: {
         backgroundColor: '#1E1E1E',
         marginHorizontal: 15,
@@ -249,7 +403,7 @@ const styles = StyleSheet.create({
 
     splitView: {
         flex: 1,
-        flexDirection: 'column', // Changed to column for mobile stack
+        flexDirection: 'column',
         paddingHorizontal: 15,
     },
     sectionTitle: {
@@ -312,6 +466,7 @@ const styles = StyleSheet.create({
         padding: 12,
         borderWidth: 1,
         borderColor: '#222',
+        maxHeight: 200
     },
     logText: {
         color: '#666',
@@ -322,7 +477,24 @@ const styles = StyleSheet.create({
     },
     logError: { color: '#D32F2F' },
     logCmd: { color: '#388E3C' },
-    logAI: { color: '#2196F3', fontWeight: 'bold' }
+    logAI: { color: '#2196F3', fontWeight: 'bold' },
+    logNet: { color: '#9C27B0' },
+    logSec: { color: '#FF9800', fontWeight: 'bold' },
+
+    actionBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 10,
+        paddingHorizontal: 15,
+        borderRadius: 8,
+        gap: 8
+    },
+    actionBtnText: {
+        color: '#FFF',
+        fontWeight: 'bold',
+        fontSize: 10,
+        letterSpacing: 1
+    }
 });
 
 export default AdminScreen;
