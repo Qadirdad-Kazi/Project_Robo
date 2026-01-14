@@ -1,8 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Button, Platform } from 'react-native';
-import { Camera } from 'expo-camera';
-import * as FaceDetector from 'expo-face-detector';
+import { Camera, useCameraPermissions } from 'expo-camera';
+// import * as FaceDetector from 'expo-face-detector'; // Crashy in Expo Go if native module missing
 import { Ionicons } from '@expo/vector-icons';
+
+let FaceDetector = null;
+try {
+    FaceDetector = require('expo-face-detector');
+} catch (e) {
+    console.warn("FaceDetector module not found");
+}
 import FrameCaptureService from './FrameCapture.js';
 import FaceRecognitionService from '../services/FaceRecognitionService';
 import GreetingEngine from '../ai-behavior/GreetingEngine';
@@ -12,10 +19,19 @@ import FollowOwnerEngine from '../navigation/FollowOwnerEngine';
 import GoToPointEngine from '../navigation/GoToPointEngine';
 
 const CameraViewComponent = ({ showFps = false, showDebugOverlay = true, enableSocial = true, onFrame }) => {
-    const [facing, setFacing] = useState(Camera.Constants.Type.back);
-    const [permission, requestPermission] = Camera.useCameraPermissions();
+    const [facing, setFacing] = useState('back');
+    const [permission, requestPermission] = useCameraPermissions();
     const [cameraReady, setCameraReady] = useState(false);
     const [faces, setFaces] = useState([]);
+
+    // Check if FaceDetector is available
+    let isFaceDetectorAvailable = false;
+    try {
+        isFaceDetectorAvailable = !!(FaceDetector && FaceDetector.FaceDetectorMode);
+    } catch (e) {
+        console.warn("Face Detector module missing (Expo Go limitation).");
+    }
+
     const [fps, setFps] = useState(0);
     const [cameraLayout, setCameraLayout] = useState({ width: 0, height: 0 });
 
@@ -138,11 +154,7 @@ const CameraViewComponent = ({ showFps = false, showDebugOverlay = true, enableS
     }
 
     function toggleCameraFacing() {
-        setFacing(current => (
-            current === Camera.Constants.Type.back
-                ? Camera.Constants.Type.front
-                : Camera.Constants.Type.back
-        ));
+        setFacing(current => (current === 'back' ? 'front' : 'back'));
     }
 
     const handleCapture = async () => {
@@ -159,14 +171,14 @@ const CameraViewComponent = ({ showFps = false, showDebugOverlay = true, enableS
                 ref={cameraRef}
                 onCameraReady={() => setCameraReady(true)}
                 onLayout={(event) => setCameraLayout(event.nativeEvent.layout)}
-                onFacesDetected={handleFacesDetected}
-                faceDetectorSettings={{
+                onFacesDetected={isFaceDetectorAvailable ? handleFacesDetected : undefined}
+                faceDetectorSettings={isFaceDetectorAvailable ? {
                     mode: FaceDetector.FaceDetectorMode.fast,
                     detectLandmarks: FaceDetector.FaceDetectorLandmarks.all,
                     runClassifications: FaceDetector.FaceDetectorClassifications.none,
                     minDetectionInterval: 200,
                     tracking: true,
-                }}
+                } : undefined}
             >
                 <View style={styles.overlay}>
                     {/* Navigation Tap Layer (Active in Admin Mode) */}

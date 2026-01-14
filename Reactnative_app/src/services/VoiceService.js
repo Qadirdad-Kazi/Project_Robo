@@ -1,10 +1,19 @@
-import Voice from '@react-native-voice/voice';
+// import Voice from '@react-native-voice/voice'; // Can't static import in Expo Go without config plugin/dev client
 import * as Speech from 'expo-speech';
 import * as Haptics from 'expo-haptics';
 import { Platform } from 'react-native';
+import EventEmitter from 'eventemitter3';
 
-class VoiceServiceHandler {
+let Voice = null;
+try {
+    Voice = require('@react-native-voice/voice').default;
+} catch (e) {
+    console.log("Native Voice module not found (Expo Go detected). Using mock.");
+}
+
+class VoiceServiceHandler extends EventEmitter {
     constructor() {
+        super();
         this.isNativeAvailable = false;
         this.checkAvailability();
 
@@ -14,14 +23,6 @@ class VoiceServiceHandler {
         this._onSpeechResults = this._onSpeechResults.bind(this);
         this._onSpeechError = this._onSpeechError.bind(this);
         this._onSpeechPartialResults = this._onSpeechPartialResults.bind(this);
-
-        this.listeners = {
-            onResults: null,
-            onPartialResults: null,
-            onError: null,
-            onStart: null,
-            onEnd: null
-        };
     }
 
     checkAvailability() {
@@ -34,10 +35,6 @@ class VoiceServiceHandler {
             Voice.onSpeechError = this._onSpeechError;
             Voice.onSpeechPartialResults = this._onSpeechPartialResults;
         }
-    }
-
-    setListeners({ onResults, onPartialResults, onError, onStart, onEnd }) {
-        this.listeners = { onResults, onPartialResults, onError, onStart, onEnd };
     }
 
     speak(text) {
@@ -68,7 +65,7 @@ class VoiceServiceHandler {
 
         } catch (e) {
             console.error(e);
-            if (this.listeners.onError) this.listeners.onError(e);
+            this.emit('error', e);
         }
     }
 
@@ -95,19 +92,19 @@ class VoiceServiceHandler {
     // --- Private Event Handlers ---
 
     _onSpeechStart(e) {
-        if (this.listeners.onStart) this.listeners.onStart(e);
+        this.emit('start', e);
     }
 
     _onSpeechEnd(e) {
-        if (this.listeners.onEnd) this.listeners.onEnd(e);
+        this.emit('end', e);
     }
 
     _onSpeechResults(e) {
-        if (this.listeners.onResults) this.listeners.onResults(e.value);
+        this.emit('final_result', e);
     }
 
     _onSpeechPartialResults(e) {
-        if (this.listeners.onPartialResults) this.listeners.onPartialResults(e.value);
+        this.emit('partial_result', e);
     }
 
     _onSpeechError(e) {
@@ -118,12 +115,12 @@ class VoiceServiceHandler {
             this._mockListeningSequence();
             return;
         }
-        if (this.listeners.onError) this.listeners.onError(e);
+        this.emit('error', e);
     }
 
     // --- MOCK LOGIC ---
     _mockListeningSequence() {
-        if (this.listeners.onStart) this.listeners.onStart();
+        this.emit('start');
 
         const phrases = [
             "Move forward please",
@@ -141,16 +138,12 @@ class VoiceServiceHandler {
         const interval = setInterval(() => {
             if (currentWordIndex < words.length) {
                 const partial = words.slice(0, currentWordIndex + 1).join(' ');
-                if (this.listeners.onPartialResults) {
-                    this.listeners.onPartialResults([partial]);
-                }
+                this.emit('partial_result', { value: [partial] });
                 currentWordIndex++;
             } else {
                 clearInterval(interval);
-                if (this.listeners.onResults) {
-                    this.listeners.onResults([targetPhrase]);
-                }
-                if (this.listeners.onEnd) this.listeners.onEnd();
+                this.emit('final_result', { value: [targetPhrase] });
+                this.emit('end');
             }
         }, 500);
     }

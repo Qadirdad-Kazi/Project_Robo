@@ -22,7 +22,7 @@ const UserScreen = ({ navigation }) => {
     const [voiceText, setVoiceText] = useState('');
     const [battery, setBattery] = useState(100);
     const [isConnected, setIsConnected] = useState(false);
-    const [simState, setSimState] = useState(null);
+    const [simState, setSimState] = useState({ status: 'IDLE', x: 0, y: 0, direction: 0 });
     const [isCameraActive, setIsCameraActive] = useState(true);
 
     useEffect(() => {
