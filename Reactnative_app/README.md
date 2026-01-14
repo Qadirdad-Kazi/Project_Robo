@@ -80,6 +80,29 @@ npm run android
 
 ---
 
+## 🧠 AI Brain Setup (Local Llama 3.2)
+
+The robot uses a local **Llama 3.2** model via **Ollama** for advanced conversational intelligence.
+
+### 1. Install Ollama
+Download and install Ollama from [ollama.com](https://ollama.com).
+
+### 2. Download the Model
+Run the following command to download the 3B model (optimized for speed/mobile):
+```bash
+ollama pull llama3.2:3b
+```
+
+### 3. Run Ollama with External Access
+By default, Ollama only listens to `localhost`. To allow the Android app to connect, you must set the host environment variable:
+
+**macOS/Linux:**
+```bash
+OLLAMA_HOST=0.0.0.0 ollama serve
+```
+
+---
+
 ## 🔌 Integration & Hardware Setup
 
 ### Bluetooth Motor Controller (Optional)

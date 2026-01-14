@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, SafeAreaView, Platform, Alert, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, SafeAreaView, Platform, Alert, ScrollView, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useIsFocused } from '@react-navigation/native';
 
@@ -17,6 +17,8 @@ import RobotFace from '../components/RobotFace';
 import { Audio } from 'expo-av';
 
 const UserScreen = ({ navigation }) => {
+    const { width, height } = useWindowDimensions();
+    const isLandscape = width > height;
     const isFocused = useIsFocused();
     const [isListening, setIsListening] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
@@ -88,19 +90,25 @@ const UserScreen = ({ navigation }) => {
 
     const processCommand = async (text) => {
         setIsProcessing(true);
-        const result = await VoiceController.handleVoiceCommand(text);
-        setIsProcessing(false);
+        try {
+            const result = await VoiceController.handleVoiceCommand(text);
 
-        // Simple heuristic: If result has an AI answer or successful command, assume speaking for a few seconds
-        // In a real app, VoiceService would emit 'tts_start' and 'tts_finish'
-        setIsRobotSpeaking(true);
-        setRobotEmotion('HAPPY'); // React positively
-        setTimeout(() => {
-            setIsRobotSpeaking(false);
-            setRobotEmotion('NEUTRAL');
-        }, 4000); // Fake talking duration
+            // Success Feedback
+            setIsRobotSpeaking(true);
+            setRobotEmotion('HAPPY');
+            setTimeout(() => {
+                setIsRobotSpeaking(false);
+                setRobotEmotion('NEUTRAL');
+            }, 4000);
 
-        setTimeout(() => setVoiceText(''), 3000);
+        } catch (error) {
+            console.error("Command Execution Error:", error);
+            setRobotEmotion('SURPRISED');
+            setTimeout(() => setRobotEmotion('NEUTRAL'), 2000);
+        } finally {
+            setIsProcessing(false);
+            setTimeout(() => setVoiceText(''), 3000);
+        }
     };
 
     const toggleListening = async () => {
@@ -123,27 +131,30 @@ const UserScreen = ({ navigation }) => {
 
     return (
         <SafeAreaView style={styles.container}>
-            <View style={styles.header}>
-                <Text style={styles.headerTitle}>Robot Controller</Text>
-                <TouchableOpacity
-                    style={styles.adminButton}
-                    onPress={handleAdminAuth}
-                >
-                    <Ionicons name="settings-sharp" size={24} color="#FFF" />
-                </TouchableOpacity>
-            </View>
+            {!isLandscape && (
+                <View style={styles.header}>
+                    <Text style={styles.headerTitle}>Robot Controller</Text>
+                    <TouchableOpacity style={styles.adminButton} onPress={handleAdminAuth}>
+                        <Ionicons name="settings-sharp" size={24} color="#FFF" />
+                    </TouchableOpacity>
+                </View>
+            )}
 
             <View style={styles.content}>
                 <ScrollView
                     style={{ flex: 1 }}
-                    contentContainerStyle={{ paddingBottom: 20 }}
+                    contentContainerStyle={isLandscape ? styles.scrollContentLandscape : styles.scrollContentPortrait}
                     showsVerticalScrollIndicator={false}
+                    pagingEnabled={isLandscape} // Snap to components in landscape
                 >
-                    <View style={styles.statusContainer}>
-                        <RobotStatus batteryLevel={battery} isConnected={isConnected} />
-                    </View>
+                    {/* Only show status at top in Portrait */}
+                    {!isLandscape && (
+                        <View style={styles.statusContainer}>
+                            <RobotStatus batteryLevel={battery} isConnected={isConnected} />
+                        </View>
+                    )}
 
-                    <View style={styles.faceContainer}>
+                    <View style={[styles.faceContainer, isLandscape && { height: height - 10, width: width - 20 }]}>
                         <RobotFace
                             emotion={robotEmotion}
                             isThinking={isProcessing}
@@ -151,14 +162,25 @@ const UserScreen = ({ navigation }) => {
                         />
                     </View>
 
-                    {/* Simulator Mini View */}
-                    <View style={styles.simContainer}>
-                        <RobotActionSimulator simState={simState} />
-                    </View>
+                    {/* In Landscape, Show Status/Sim below the face */}
+                    {isLandscape && (
+                        <View style={styles.landscapeExtraContainer}>
+                            <RobotStatus batteryLevel={battery} isConnected={isConnected} />
+                            <View style={styles.simContainer}>
+                                <RobotActionSimulator simState={simState} />
+                            </View>
+                        </View>
+                    )}
+
+                    {!isLandscape && (
+                        <View style={styles.simContainer}>
+                            <RobotActionSimulator simState={simState} />
+                        </View>
+                    )}
                 </ScrollView>
 
-                <View style={styles.bottomControls}>
-                    <Text style={styles.transcriptionText}>
+                <View style={[styles.bottomControls, isLandscape && styles.bottomControlsLandscape]}>
+                    <Text style={[styles.transcriptionText, isLandscape && styles.transcriptionTextLandscape]}>
                         {voiceText || (isListening ? "Listening..." : "Ready")}
                     </Text>
 
@@ -167,22 +189,29 @@ const UserScreen = ({ navigation }) => {
                             styles.micButton,
                             isListening && styles.micButtonActive,
                             isProcessing && styles.micButtonProcessing,
-                            !isConnected && styles.micButtonDisabled
+                            !isConnected && styles.micButtonDisabled,
+                            isLandscape && styles.micButtonLandscape
                         ]}
                         onPress={toggleListening}
                         activeOpacity={0.8}
                         disabled={!isConnected || isProcessing}
                     >
                         {isProcessing ? (
-                            <ActivityIndicator size="large" color="#FFF" />
+                            <ActivityIndicator size="small" color="#FFF" />
                         ) : (
                             <Ionicons
                                 name={isListening ? "mic" : "mic-outline"}
-                                size={48}
+                                size={isLandscape ? 32 : 48}
                                 color="#FFF"
                             />
                         )}
                     </TouchableOpacity>
+
+                    {isLandscape && (
+                        <TouchableOpacity style={styles.landscapeAdminButton} onPress={handleAdminAuth}>
+                            <Ionicons name="settings-sharp" size={24} color="#555" />
+                        </TouchableOpacity>
+                    )}
                 </View>
             </View>
         </SafeAreaView>
@@ -222,15 +251,6 @@ const styles = StyleSheet.create({
     },
     statusContainer: {
         marginBottom: 10,
-    },
-    cameraContainer: {
-        height: 240,
-        borderRadius: 12,
-        overflow: 'hidden',
-        marginBottom: 10,
-        backgroundColor: '#000',
-        borderWidth: 1,
-        borderColor: '#333'
     },
     simContainer: {
         marginBottom: 10,
@@ -278,6 +298,44 @@ const styles = StyleSheet.create({
     },
     faceContainer: {
         marginBottom: 20,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    scrollContentPortrait: {
+        paddingBottom: 20,
+    },
+    scrollContentLandscape: {
+        paddingBottom: 0,
+    },
+    landscapeExtraContainer: {
+        padding: 20,
+    },
+    bottomControlsLandscape: {
+        position: 'absolute',
+        right: 20,
+        bottom: 20,
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'transparent',
+    },
+    transcriptionTextLandscape: {
+        marginBottom: 0,
+        marginRight: 15,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        paddingHorizontal: 15,
+        borderRadius: 20,
+        overflow: 'hidden',
+    },
+    micButtonLandscape: {
+        width: 60,
+        height: 60,
+        borderRadius: 30,
+    },
+    landscapeAdminButton: {
+        marginLeft: 15,
+        padding: 8,
+        backgroundColor: 'rgba(255,255,255,0.1)',
+        borderRadius: 30,
     }
 });
 

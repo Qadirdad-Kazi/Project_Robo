@@ -127,25 +127,29 @@ class VoiceServiceHandler extends EventEmitter {
             "Turn around",
             "Check battery status",
             "Dance for me",
-            "Stop right there"
+            "Stop right there",
+            "Enable AI Mode",
+            "What is HTML"
         ];
         const targetPhrase = phrases[Math.floor(Math.random() * phrases.length)];
         const words = targetPhrase.split(' ');
 
         let currentWordIndex = 0;
 
-        // Simulate partial results typing out
-        const interval = setInterval(() => {
-            if (currentWordIndex < words.length) {
-                const partial = words.slice(0, currentWordIndex + 1).join(' ');
-                this.emit('partial_result', { value: [partial] });
-                currentWordIndex++;
-            } else {
-                clearInterval(interval);
-                this.emit('final_result', { value: [targetPhrase] });
-                this.emit('end');
-            }
-        }, 500);
+        // Artificial delay to simulate human speaking time
+        setTimeout(() => {
+            const interval = setInterval(() => {
+                if (currentWordIndex < words.length) {
+                    const partial = words.slice(0, currentWordIndex + 1).join(' ');
+                    this.emit('partial_result', { value: [partial] });
+                    currentWordIndex++;
+                } else {
+                    clearInterval(interval);
+                    this.emit('final_result', { value: [targetPhrase] });
+                    this.emit('end');
+                }
+            }, 600);
+        }, 1500); // 1.5s initial "listening" silence
     }
 }
 
