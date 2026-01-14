@@ -4,13 +4,11 @@
 import RobotService from '../services/RobotService';
 import VoiceService from '../services/VoiceService';
 import { INTENTS } from './IntentParser';
+import FollowOwnerEngine from '../navigation/FollowOwnerEngine';
+import DecisionEngine, { MODES } from '../core/DecisionEngine';
 
 class CommandMap {
 
-    /**
-     * Excutes the logic for a given Intent
-     * @param {Object} intentResult - The output from IntentParser
-     */
     async execute(intentResult) {
         const { type, parameters } = intentResult;
 
@@ -18,19 +16,20 @@ class CommandMap {
 
         switch (type) {
             case INTENTS.HALT:
+                DecisionEngine.setMode(MODES.IDLE); // Reset Brain
+                FollowOwnerEngine.stop();
                 await RobotService.stop();
-                VoiceService.speak("Stopping now.");
+                VoiceService.speak("Stopping.");
                 break;
 
             case INTENTS.FOLLOW:
-                // For now, simulate 'Follow' by moving forward slightly or turning towards owner?
-                // Real follow requires vision tracking loop.
-                VoiceService.speak("Coming to you.");
-                await RobotService.sendCommand('FORWARD');
-                // In future: RobotService.setMode('FOLLOW_MODE');
+                FollowOwnerEngine.start(); // Engine sets Mode to FOLLOW
                 break;
 
             case INTENTS.MOVE:
+                DecisionEngine.setMode(MODES.MANUAL); // Take over
+                FollowOwnerEngine.stop();
+
                 if (parameters.direction === 'backward') {
                     await RobotService.sendCommand('BACKWARD');
                     VoiceService.speak("Backing up.");
@@ -41,27 +40,32 @@ class CommandMap {
                 break;
 
             case INTENTS.ROTATE_LEFT:
+                DecisionEngine.setMode(MODES.MANUAL);
+                FollowOwnerEngine.stop();
                 await RobotService.sendCommand('LEFT');
                 VoiceService.speak("Turning left.");
                 break;
 
             case INTENTS.ROTATE_RIGHT:
+                DecisionEngine.setMode(MODES.MANUAL);
+                FollowOwnerEngine.stop();
                 await RobotService.sendCommand('RIGHT');
                 VoiceService.speak("Turning right.");
                 break;
 
             case INTENTS.STATUS:
-                const bat = RobotService.getBatteryLevel(); // Assuming sync or use state
-                VoiceService.speak(`Systems operational. Battery at ${bat} percent.`);
+                // Just info, doesn't change mode
+                const status = RobotService.getStatus();
+                VoiceService.speak(`Systems operational. Battery at ${status.batteryLevel} percent.`);
                 break;
 
             case INTENTS.GREET:
-                VoiceService.speak("Hello there. Ready for commands.");
+                VoiceService.speak("Hello there. Systems online.");
                 break;
 
             case INTENTS.UNKNOWN:
             default:
-                VoiceService.speak("I did not understand that command.");
+                VoiceService.speak("Command not recognized.");
                 console.warn("[CommandMap] Unknown intent:", type);
                 break;
         }

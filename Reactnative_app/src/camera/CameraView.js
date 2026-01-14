@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Button, Platform } from 'react-native';
-import { Camera } from 'expo-camera'; // Using Legacy Camera for Face Detection support in Expo Go
+import { Camera } from 'expo-camera';
 import * as FaceDetector from 'expo-face-detector';
 import { Ionicons } from '@expo/vector-icons';
 import FrameCaptureService from './FrameCapture.js';
@@ -8,13 +8,16 @@ import FaceRecognitionService from '../services/FaceRecognitionService';
 import GreetingEngine from '../ai-behavior/GreetingEngine';
 import VoiceService from '../services/VoiceService';
 import VisionDebugService from '../services/VisionDebugService';
+import FollowOwnerEngine from '../navigation/FollowOwnerEngine';
+import GoToPointEngine from '../navigation/GoToPointEngine';
 
 const CameraViewComponent = ({ showFps = false, showDebugOverlay = true, enableSocial = true, onFrame }) => {
     const [facing, setFacing] = useState(Camera.Constants.Type.back);
     const [permission, requestPermission] = Camera.useCameraPermissions();
     const [cameraReady, setCameraReady] = useState(false);
     const [faces, setFaces] = useState([]);
-    const [fps, setFps] = useState(0); // State for FPS display
+    const [fps, setFps] = useState(0);
+    const [cameraLayout, setCameraLayout] = useState({ width: 0, height: 0 });
 
     const cameraRef = useRef(null);
 
@@ -29,7 +32,7 @@ const CameraViewComponent = ({ showFps = false, showDebugOverlay = true, enableS
             if (now - lastTime.current >= 1000) {
                 const currentFps = fpsFrameCount.current;
                 setFps(currentFps);
-                VisionDebugService.update({ fps: currentFps }); // Broadcast FPS
+                VisionDebugService.update({ fps: currentFps });
                 fpsFrameCount.current = 0;
                 lastTime.current = now;
             }
@@ -37,28 +40,41 @@ const CameraViewComponent = ({ showFps = false, showDebugOverlay = true, enableS
         };
         const handle = requestAnimationFrame(loop);
         return () => cancelAnimationFrame(handle);
-    }, []); // Always run FPS loop even if not showing in User UI, for Admin Debug
+    }, []);
+
+    const handleScreenTap = (event) => {
+        if (!showDebugOverlay || cameraLayout.width === 0) return;
+
+        const { locationX, locationY } = event.nativeEvent;
+        // console.log(`[Camera] Tap at ${locationX.toFixed(0)}, ${locationY.toFixed(0)}`);
+
+        GoToPointEngine.navigateToPoint(locationX, locationY, cameraLayout.width, cameraLayout.height);
+    };
 
     // Face Detection Handler
     const handleFacesDetected = ({ faces }) => {
         if (faces.length > 0) {
-            // Process faces & Find Primary
             let primaryIdentity = null;
+            let primaryFace = null;
             let maxConfidence = 0;
+            let maxFaceWidth = 0;
 
             const processedFaces = faces.map(face => {
                 const identity = FaceRecognitionService.recognizeFace(face);
 
-                // Track stats for debug
                 if (identity.confidence > maxConfidence) {
                     maxConfidence = identity.confidence;
                     primaryIdentity = identity;
                 }
 
+                if (face.bounds.size.width > maxFaceWidth) {
+                    maxFaceWidth = face.bounds.size.width;
+                    primaryFace = face;
+                }
+
                 return { ...face, identity };
             });
 
-            // Social Logic on Primary Face
             if (enableSocial && primaryIdentity && primaryIdentity.confidence > 0.85) {
                 const greeting = GreetingEngine.evaluateGreeting(primaryIdentity);
                 if (greeting) {
@@ -67,7 +83,10 @@ const CameraViewComponent = ({ showFps = false, showDebugOverlay = true, enableS
                 }
             }
 
-            // Broadcast Vision Stats
+            if (primaryFace && cameraLayout.width > 0) {
+                FollowOwnerEngine.update(primaryFace, cameraLayout);
+            }
+
             VisionDebugService.update({
                 faceDetected: true,
                 faceCount: faces.length,
@@ -91,15 +110,12 @@ const CameraViewComponent = ({ showFps = false, showDebugOverlay = true, enableS
     const handleRegisterOwner = () => {
         if (faces.length === 0) return;
 
-        // Find largest face (closest)
         const primaryFace = faces.reduce((prev, current) => {
             return (prev.bounds.size.width > current.bounds.size.width) ? prev : current;
         });
 
         const result = FaceRecognitionService.registerOwner(primaryFace);
         if (result.success) {
-            // Trigger a re-render or toast?
-            // For now just console/visual feedback next frame
             alert(`Registered Owner: ${result.profile.name}`);
         } else {
             alert("Could not register face. Move closer/steady.");
@@ -137,25 +153,33 @@ const CameraViewComponent = ({ showFps = false, showDebugOverlay = true, enableS
                 type={facing}
                 ref={cameraRef}
                 onCameraReady={() => setCameraReady(true)}
-
-                // Face Detection Props
+                onLayout={(event) => setCameraLayout(event.nativeEvent.layout)}
                 onFacesDetected={handleFacesDetected}
                 faceDetectorSettings={{
                     mode: FaceDetector.FaceDetectorMode.fast,
                     detectLandmarks: FaceDetector.FaceDetectorLandmarks.all,
                     runClassifications: FaceDetector.FaceDetectorClassifications.none,
-                    minDetectionInterval: 200, // Reduced to 5fps for processing time
+                    minDetectionInterval: 200,
                     tracking: true,
                 }}
             >
                 <View style={styles.overlay}>
+                    {/* Navigation Tap Layer (Active in Admin Mode) */}
+                    {showDebugOverlay && (
+                        <TouchableOpacity
+                            style={StyleSheet.absoluteFill}
+                            activeOpacity={1}
+                            onPress={handleScreenTap}
+                        />
+                    )}
+
                     {/* Face Bounding Boxes (Debug Only) */}
                     {showDebugOverlay && (
-                        <View style={StyleSheet.absoluteFill}>
+                        <View style={StyleSheet.absoluteFill} pointerEvents="none">
                             {faces.map((face, index) => {
                                 const isOwner = face.identity?.id === 'OWNER_001';
                                 const confidence = face.identity?.confidence || 0;
-                                const borderColor = isOwner ? '#00E676' : '#00E5FF'; // Green for Owner, Blue for guest
+                                const borderColor = isOwner ? '#00E676' : '#00E5FF';
 
                                 return (
                                     <View
@@ -190,18 +214,15 @@ const CameraViewComponent = ({ showFps = false, showDebugOverlay = true, enableS
                     )}
 
                     <View style={styles.uiLayer}>
-                        {/* Controls */}
                         <View style={styles.controlsContainer}>
                             <TouchableOpacity style={styles.button} onPress={toggleCameraFacing}>
                                 <Ionicons name="camera-reverse-outline" size={28} color="white" />
                             </TouchableOpacity>
 
-                            {/* Capture Frame */}
                             <TouchableOpacity style={styles.captureBtn} onPress={handleCapture}>
                                 <View style={styles.captureBtnInner} />
                             </TouchableOpacity>
 
-                            {/* Register Face Button (Only if Debug Overlay is ON, i.e. Admin/Training Mode) */}
                             {showDebugOverlay && (
                                 <TouchableOpacity style={styles.button} onPress={handleRegisterOwner}>
                                     <Ionicons name="person-add-outline" size={28} color="white" />
@@ -238,7 +259,8 @@ const styles = StyleSheet.create({
     uiLayer: {
         flex: 1,
         justifyContent: 'flex-end',
-        padding: 10
+        padding: 10,
+        zIndex: 20 // Ensure controls are above click layer
     },
     faceBox: {
         position: 'absolute',
@@ -255,7 +277,7 @@ const styles = StyleSheet.create({
         borderRadius: 4,
     },
     faceLabel: {
-        color: '#FFF', // White text
+        color: '#FFF',
         fontSize: 10,
         fontWeight: 'bold',
         textTransform: 'uppercase'

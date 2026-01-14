@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, SafeAreaView, Platform, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useIsFocused } from '@react-navigation/native'; // Ensure camera pauses when not focused
+import { useIsFocused } from '@react-navigation/native';
 
 import AuthService from '../services/AuthService';
 import VoiceService from '../services/VoiceService';
 import RobotService from '../services/RobotService';
-import VoiceController from '../controllers/VoiceController'; // Pipeline
+import VoiceController from '../controllers/VoiceController';
+import ObstacleLogic from '../sensors/ObstacleLogic'; // Safety
 
 import RobotStatus from '../components/RobotStatus';
 import RobotActionSimulator from '../components/RobotActionSimulator';
@@ -25,6 +26,9 @@ const UserScreen = ({ navigation }) => {
     const [isCameraActive, setIsCameraActive] = useState(true);
 
     useEffect(() => {
+        // Start Safety Systems
+        ObstacleLogic.start();
+
         // 1. Robot Status Listeners
         const unsubscribeRobot = RobotService.addListener((data) => {
             if (data.type === 'BATTERY') setBattery(data.value);
@@ -54,6 +58,7 @@ const UserScreen = ({ navigation }) => {
         checkPermissions();
 
         return () => {
+            ObstacleLogic.stop();
             unsubscribeRobot();
             VoiceService.off('start', onSpeechStart);
             VoiceService.off('end', onSpeechEnd);
@@ -71,11 +76,8 @@ const UserScreen = ({ navigation }) => {
 
     const processCommand = async (text) => {
         setIsProcessing(true);
-        // Invoke the Voice Pipeline
         await VoiceController.handleVoiceCommand(text);
         setIsProcessing(false);
-
-        // Clear text after a delay
         setTimeout(() => setVoiceText(''), 3000);
     };
 
@@ -110,14 +112,11 @@ const UserScreen = ({ navigation }) => {
             </View>
 
             <View style={styles.content}>
-
-                {/* Scrollable Content for small screens */}
                 <View style={{ flex: 1 }}>
                     <View style={styles.statusContainer}>
                         <RobotStatus batteryLevel={battery} isConnected={isConnected} />
                     </View>
 
-                    {/* Camera Feed - Only active when focused */}
                     <View style={styles.cameraContainer}>
                         {(isCameraActive && isFocused) && (
                             <CameraViewComponent
@@ -129,13 +128,11 @@ const UserScreen = ({ navigation }) => {
                         )}
                     </View>
 
-                    {/* Robot Sim */}
                     <View style={styles.simContainer}>
                         <RobotActionSimulator simState={simState} />
                     </View>
                 </View>
 
-                {/* Bottom Controls (Fixed) */}
                 <View style={styles.bottomControls}>
                     <Text style={styles.transcriptionText}>
                         {voiceText || (isListening ? "Listening..." : "Ready")}

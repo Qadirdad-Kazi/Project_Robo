@@ -5,12 +5,23 @@ import { useIsFocused } from '@react-navigation/native';
 import RobotService from '../services/RobotService';
 import VisionDebugService from '../services/VisionDebugService';
 import FaceRecognitionService from '../services/FaceRecognitionService';
+import DistanceSensor from '../sensors/DistanceSensor';
 import CameraViewComponent from '../camera/CameraView';
+import DecisionEngine from '../core/DecisionEngine';
 
 const AdminScreen = ({ navigation }) => {
     const isFocused = useIsFocused();
     const [logs, setLogs] = useState([]);
     const [lastVoiceCmd, setLastVoiceCmd] = useState(null);
+    const [distance, setDistance] = useState(200);
+
+    const [cortexState, setCortexState] = useState({
+        mode: 'OFFLINE',
+        decision: 'WAITING',
+        reason: 'Initializing...',
+        safety: { blocked: false }
+    });
+
     const [visionStats, setVisionStats] = useState({
         fps: 0,
         faceDetected: false,
@@ -24,6 +35,17 @@ const AdminScreen = ({ navigation }) => {
 
     useEffect(() => {
         addLog("Admin Console Initialized");
+
+        // Cortex Link
+        const unsubscribeCortex = DecisionEngine.addListener((data) => {
+            if (data.type === 'THINK') {
+                setCortexState(data);
+            }
+        });
+
+        // Distance Sensor Listener
+        const onDistance = (val) => setDistance(val);
+        DistanceSensor.addListener('distance', onDistance);
 
         // Robot Service Listener
         const unsubscribeRobot = RobotService.addListener((data) => {
@@ -49,6 +71,8 @@ const AdminScreen = ({ navigation }) => {
         });
 
         return () => {
+            unsubscribeCortex();
+            DistanceSensor.removeListener('distance', onDistance);
             unsubscribeRobot();
             unsubscribeVision();
         };
@@ -86,6 +110,17 @@ const AdminScreen = ({ navigation }) => {
         );
     };
 
+    // Test Safety System
+    const triggerObstacle = () => {
+        DistanceSensor.setDistance(15);
+        addLog("Simulated Obstacle (15cm)", "TEST");
+    };
+
+    const clearObstacle = () => {
+        DistanceSensor.setDistance(200);
+        addLog("Cleared Path", "TEST");
+    };
+
     return (
         <SafeAreaView style={styles.container}>
             <View style={styles.header}>
@@ -106,9 +141,73 @@ const AdminScreen = ({ navigation }) => {
                             <CameraViewComponent
                                 showFps={true}
                                 showDebugOverlay={true}
-                                enableSocial={false} // Silent mode for admin
+                                enableSocial={false}
                             />
                         )}
+                    </View>
+                </View>
+
+                {/* 0.1 CORTEX NEURAL LINK (BRAIN) */}
+                <View style={[styles.inspectorCard, { borderLeftColor: '#E040FB' }]}>
+                    <View style={styles.inspectorHeader}>
+                        <Ionicons name="git-network-outline" size={18} color="#E040FB" />
+                        <Text style={[styles.inspectorTitle, { color: '#E040FB' }]}>CORTEX NEURAL LINK</Text>
+                        <View style={[styles.statusBadge, { backgroundColor: cortexState.safety?.blocked ? '#D32F2F' : '#333' }]}>
+                            <Text style={{ color: '#FFF', fontWeight: 'bold' }}>
+                                {cortexState.safety?.blocked ? 'SAFETY LOCK' : 'ACTIVE'}
+                            </Text>
+                        </View>
+                    </View>
+
+                    <View style={styles.gridContainer}>
+                        <View style={{ width: '100%', marginBottom: 10 }}>
+                            <Text style={styles.label}>CURRENT MODE</Text>
+                            <Text style={[styles.value, { fontSize: 18, color: '#E040FB' }]}>
+                                {cortexState.mode}
+                            </Text>
+                        </View>
+
+                        <View style={styles.gridItem}>
+                            <Text style={styles.label}>DECISION</Text>
+                            <Text style={[styles.value, { color: '#FFF' }]}>{cortexState.decision}</Text>
+                        </View>
+                        <View style={styles.gridItem}>
+                            <Text style={styles.label}>LOGIC REASON</Text>
+                            <Text style={[styles.value, { color: '#AAA', fontStyle: 'italic' }]}>
+                                "{cortexState.reason}"
+                            </Text>
+                        </View>
+                    </View>
+                </View>
+
+                {/* 0.5 SENSOR ARRAY (NEW) */}
+                <View style={[styles.inspectorCard, { borderLeftColor: '#FFEB3B' }]}>
+                    <View style={styles.inspectorHeader}>
+                        <Ionicons name="pulse" size={18} color="#FFEB3B" />
+                        <Text style={[styles.inspectorTitle, { color: '#FFEB3B' }]}>SENSOR ARRAY</Text>
+                        <View style={[styles.statusBadge, { backgroundColor: distance < 30 ? '#D32F2F' : '#333' }]}>
+                            <Text style={{ color: '#FFF', fontWeight: 'bold' }}>
+                                {distance < 30 ? 'CRITICAL' : 'NOMINAL'}
+                            </Text>
+                        </View>
+                    </View>
+
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <View>
+                            <Text style={styles.label}>ULTRASONIC RANGE</Text>
+                            <Text style={[styles.value, { fontSize: 24, color: distance < 50 ? '#FF5252' : '#FFF' }]}>
+                                {distance} cm
+                            </Text>
+                        </View>
+
+                        <View style={{ flexDirection: 'row', gap: 10 }}>
+                            <TouchableOpacity style={[styles.miniBtn, { backgroundColor: '#D32F2F' }]} onPress={triggerObstacle}>
+                                <Text style={styles.miniBtnText}>BLOCK</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={[styles.miniBtn, { backgroundColor: '#388E3C' }]} onPress={clearObstacle}>
+                                <Text style={styles.miniBtnText}>CLEAR</Text>
+                            </TouchableOpacity>
+                        </View>
                     </View>
                 </View>
 
@@ -310,7 +409,9 @@ const styles = StyleSheet.create({
         flex: 1,
         paddingTop: 10,
     },
-    // New Admin Camera Styles
+    backButton: {
+        padding: 5
+    },
     adminCameraContainer: {
         marginHorizontal: 15,
         marginBottom: 10,
@@ -334,8 +435,6 @@ const styles = StyleSheet.create({
     cameraWrapper: {
         flex: 1
     },
-
-    // Cards
     inspectorCard: {
         backgroundColor: '#1E1E1E',
         marginHorizontal: 15,
@@ -400,7 +499,6 @@ const styles = StyleSheet.create({
         fontSize: 11,
         fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
     },
-
     splitView: {
         flex: 1,
         flexDirection: 'column',
@@ -494,6 +592,18 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
         fontSize: 10,
         letterSpacing: 1
+    },
+    miniBtn: {
+        paddingVertical: 6,
+        paddingHorizontal: 10,
+        borderRadius: 4,
+        minWidth: 60,
+        alignItems: 'center'
+    },
+    miniBtnText: {
+        color: '#FFF',
+        fontSize: 10,
+        fontWeight: 'bold'
     }
 });
 
