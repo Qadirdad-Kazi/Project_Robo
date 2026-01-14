@@ -467,7 +467,7 @@ const AdminScreen = ({ navigation }) => {
                 {/* 4. LLAMA NEURAL BRIDGE (LOCAL AI) */}
                 <View style={[styles.inspectorCard, { borderLeftColor: '#7C4DFF' }]}>
                     <View style={styles.inspectorHeader}>
-                        <Ionicons name="brain-outline" size={18} color="#7C4DFF" />
+                        <Ionicons name="hardware-chip-outline" size={18} color="#7C4DFF" />
                         <Text style={[styles.inspectorTitle, { color: '#7C4DFF' }]}>NEURAL BRIDGE (LLAMA 3.2)</Text>
                         <View style={[styles.statusBadge, { backgroundColor: llamaStatus === 'CONNECTED' ? '#4CAF50' : llamaStatus === 'THINKING' ? '#FFD740' : '#D32F2F' }]}>
                             <Text style={styles.statusText}>{llamaStatus}</Text>

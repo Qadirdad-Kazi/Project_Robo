@@ -1,14 +1,13 @@
-// import Voice from '@react-native-voice/voice'; // Can't static import in Expo Go without config plugin/dev client
 import * as Speech from 'expo-speech';
 import * as Haptics from 'expo-haptics';
-import { Platform } from 'react-native';
+import { Platform, Alert } from 'react-native';
 import EventEmitter from 'eventemitter3';
 
 let Voice = null;
 try {
     Voice = require('@react-native-voice/voice').default;
 } catch (e) {
-    console.log("Native Voice module not found (Expo Go detected). Using mock.");
+    console.log("Native Voice module not found (Expo Go detected). Mocking disabled.");
 }
 
 class VoiceServiceHandler extends EventEmitter {
@@ -26,7 +25,6 @@ class VoiceServiceHandler extends EventEmitter {
     }
 
     checkAvailability() {
-        // Check if Voice module is linked (native)
         if (Voice) {
             this.isNativeAvailable = true;
             Voice.onSpeechStart = this._onSpeechStart;
@@ -52,17 +50,14 @@ class VoiceServiceHandler extends EventEmitter {
 
         try {
             if (this.isNativeAvailable) {
-                try {
-                    await Voice.start('en-US');
-                    return;
-                } catch (e) {
-                    console.warn("Native Voice failed (likely Expo Go), falling back to simulation.", e);
-                }
+                await Voice.start('en-US');
+            } else {
+                Alert.alert(
+                    "Voice Not Available",
+                    "Native Voice recognition is not supported in Expo Go. To use voice, you must build a Development Client or use a physical device with a native build.\n\nUse the 'Neural Bridge' in Admin Screen to type commands manually.",
+                    [{ text: "OK" }]
+                );
             }
-
-            // Fallback Simulation
-            this._mockListeningSequence();
-
         } catch (e) {
             console.error(e);
             this.emit('error', e);
@@ -108,48 +103,8 @@ class VoiceServiceHandler extends EventEmitter {
     }
 
     _onSpeechError(e) {
-        // In simulator/Expo Go, "7/No match" or "5/Client side error" are common if native module missing
         console.log("Voice Error", e);
-        if (e.error?.code === '5' || e.error?.code === '7') {
-            // Fallback if it fails mid-flight
-            this._mockListeningSequence();
-            return;
-        }
         this.emit('error', e);
-    }
-
-    // --- MOCK LOGIC ---
-    _mockListeningSequence() {
-        this.emit('start');
-
-        const phrases = [
-            "Move forward please",
-            "Turn around",
-            "Check battery status",
-            "Dance for me",
-            "Stop right there",
-            "Enable AI Mode",
-            "What is HTML"
-        ];
-        const targetPhrase = phrases[Math.floor(Math.random() * phrases.length)];
-        const words = targetPhrase.split(' ');
-
-        let currentWordIndex = 0;
-
-        // Artificial delay to simulate human speaking time
-        setTimeout(() => {
-            const interval = setInterval(() => {
-                if (currentWordIndex < words.length) {
-                    const partial = words.slice(0, currentWordIndex + 1).join(' ');
-                    this.emit('partial_result', { value: [partial] });
-                    currentWordIndex++;
-                } else {
-                    clearInterval(interval);
-                    this.emit('final_result', { value: [targetPhrase] });
-                    this.emit('end');
-                }
-            }, 600);
-        }, 1500); // 1.5s initial "listening" silence
     }
 }
 
