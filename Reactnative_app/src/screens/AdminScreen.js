@@ -10,6 +10,7 @@ import CameraViewComponent from '../camera/CameraView';
 import DecisionEngine from '../core/DecisionEngine';
 import MediaController from '../media/MediaController';
 import TaskScheduler from '../tasks/TaskScheduler';
+import PowerManager from '../system/PowerManager';
 
 const AdminScreen = ({ navigation }) => {
     const isFocused = useIsFocused();
@@ -25,7 +26,8 @@ const AdminScreen = ({ navigation }) => {
     });
 
     const [mediaState, setMediaState] = useState({ status: 'IDLE', track: null });
-    const [tasks, setTasks] = useState([]); // Task State
+    const [tasks, setTasks] = useState([]);
+    const [power, setPower] = useState({ level: 100, mode: 'HIGH_PERF', charging: false }); // Power State
 
     const [visionStats, setVisionStats] = useState({
         fps: 0,
@@ -40,6 +42,11 @@ const AdminScreen = ({ navigation }) => {
 
     useEffect(() => {
         addLog("Admin Console Initialized");
+
+        // Power Listener
+        const unsubscribePower = PowerManager.addListener((state) => {
+            setPower(state);
+        });
 
         // Cortex Link
         const unsubscribeCortex = DecisionEngine.addListener((data) => {
@@ -86,6 +93,7 @@ const AdminScreen = ({ navigation }) => {
         });
 
         return () => {
+            unsubscribePower();
             unsubscribeCortex();
             unsubscribeMedia();
             unsubscribeTasks();
@@ -161,6 +169,28 @@ const AdminScreen = ({ navigation }) => {
                                 enableSocial={false}
                             />
                         )}
+                    </View>
+                </View>
+
+                {/* 0.05 POWER & ENERGY (NEW) */}
+                <View style={[styles.inspectorCard, { borderLeftColor: power.level < 20 ? '#F44336' : '#00E676' }]}>
+                    <View style={styles.inspectorHeader}>
+                        <Ionicons name={power.isCharging ? "battery-charging" : "battery-full"} size={18} color={power.level < 20 ? '#F44336' : '#00E676'} />
+                        <Text style={[styles.inspectorTitle, { color: power.level < 20 ? '#F44336' : '#00E676' }]}>ENERGY CORE</Text>
+                        <View style={[styles.statusBadge, { backgroundColor: '#333' }]}>
+                            <Text style={{ color: '#FFF', fontWeight: 'bold' }}>{power.level}%</Text>
+                        </View>
+                    </View>
+
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <View>
+                            <Text style={styles.label}>MODE</Text>
+                            <Text style={[styles.value, { color: '#FFF' }]}>{power.mode}</Text>
+                        </View>
+                        <View>
+                            <Text style={styles.label}>VOLTAGE</Text>
+                            <Text style={[styles.value, { color: '#AAA' }]}>12.4 V</Text>
+                        </View>
                     </View>
                 </View>
 

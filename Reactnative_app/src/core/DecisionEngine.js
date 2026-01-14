@@ -5,6 +5,7 @@
 import RobotService from '../services/RobotService';
 import VoiceService from '../services/VoiceService';
 import SafetyMonitor from '../safety/SafetyRules';
+import PowerManager, { POWER_MODES } from '../system/PowerManager';
 
 export const MODES = {
     IDLE: 'IDLE',
@@ -30,15 +31,38 @@ class DecisionEngine {
         // Settings
         this.safetyEnabled = true;
 
-        // Loop
-        this.decisionLoop = setInterval(this.evaluate.bind(this), 250);
+        // Loop Management
+        this.decisionLoop = null;
+        this.loopInterval = 250;
+
+        // Power Listener
+        PowerManager.addListener(this.onPowerUpdate.bind(this));
+    }
+
+    onPowerUpdate(status) {
+        // Adjust polling rate
+        const newInterval = PowerManager.getSensorInterval('CORTEX');
+        if (newInterval !== this.loopInterval || !this.decisionLoop) {
+            console.log(`[DecisionEngine] Adjusting Loop Rate: ${newInterval}ms (${status.mode})`);
+            this.loopInterval = newInterval;
+            if (this.decisionLoop) clearInterval(this.decisionLoop);
+            this.decisionLoop = setInterval(this.evaluate.bind(this), this.loopInterval);
+        }
+
+        // Critical Shutdown
+        if (status.mode === POWER_MODES.CRITICAL && this.currentMode !== MODES.IDLE) {
+            this.setMode(MODES.IDLE);
+            VoiceService.speak("Battery critical. Stopping autonomous functions.");
+        }
     }
 
     // --- OBSERVABILITY ---
     addListener(callback) {
         this.listeners.push(callback);
+        // Initial State
         const state = this.captureState('INIT', 'System Start');
         callback(state);
+
         return () => {
             this.listeners = this.listeners.filter(cb => cb !== callback);
         };
@@ -67,22 +91,38 @@ class DecisionEngine {
      */
     updateSafetyStatus(distance) {
         this.sensorState.distance = distance;
-        this.sensorState.blocked = distance < 30;
+        this.sensorState.blocked = distance < 30; // 30cm Hard Stop
         SafetyMonitor.notifySensorHeartbeat(); // Keep Alive
     }
 
+    /**
+     * Set the High-Level Operation Mode
+     * @param {string} mode 
+     */
     setMode(mode) {
         if (this.currentMode === mode) return;
 
+        // Check Power Constraints
+        if (mode === MODES.FOLLOW && !PowerManager.shouldAllowAI()) {
+            VoiceService.speak("Power too low for autonomous tracking.");
+            return;
+        }
+
         console.log(`[DecisionEngine] Mode Change: ${this.currentMode} -> ${mode}`);
         this.currentMode = mode;
-        this.visionProposal = null;
+        this.visionProposal = null; // Reset Proposals
 
+        // Immediate Feedback
         if (mode === MODES.IDLE || mode === MODES.SAFETY_LOCK) RobotService.stop();
 
         this.notifyListeners({ type: 'MODE_CHANGE', value: mode });
     }
 
+    /**
+     * Specialized Modules propose a move
+     * @param {string} command - 'FORWARD', 'LEFT', etc.
+     * @param {Object} metadata - { speed, reason }
+     */
     proposeMovement(command, metadata = {}) {
         this.visionProposal = { command, ...metadata, timestamp: Date.now() };
     }
@@ -145,6 +185,7 @@ class DecisionEngine {
         switch (this.currentMode) {
             case MODES.IDLE:
                 decision = 'HOLD';
+                reason = PowerManager.mode === POWER_MODES.POWER_SAVER ? 'Power Save Mode' : 'Ready';
                 break;
 
             case MODES.MANUAL:
@@ -175,18 +216,21 @@ class DecisionEngine {
                 break;
         }
 
+        // Broadcast State for Debug UI
         this.notifyListeners(this.captureState(decision, reason));
     }
 
     handleFollowMode() {
+        // Check if we have a fresh proposal (latency check)
         if (!this.visionProposal) return null;
 
         const now = Date.now();
         if (now - this.visionProposal.timestamp > 1000) {
+            // Stale proposal (Vision lost?)
             return null;
         }
 
-        // Execute 
+        // Execute Proposed Command
         if (this.visionProposal.command === 'STOP') {
             RobotService.stop();
         } else {
