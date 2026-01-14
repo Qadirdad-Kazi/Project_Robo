@@ -6,7 +6,7 @@ Welcome to **Project Robo**, a comprehensive robotics system that combines a pow
 
 This monorepo is divided into two main components:
 
-### 1. 📱 React Native App (`/React Native`)
+### 1. 📱 React Native App (`/Reactnative_app`)
 The mobile command center for the robot.
 - **Features**: 
   - Voice Command Interface ("Move forward", "Dance", etc.)
@@ -36,7 +36,7 @@ The brain of the physical robot.
 ### Interface Setup (Mobile App)
 Navigate to the mobile app directory:
 ```bash
-cd "React Native"
+cd Reactnative_app
 npm install
 npx expo start
 ```

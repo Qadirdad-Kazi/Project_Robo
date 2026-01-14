@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "robot_ui",
-    "slug": "robot_ui",
+    "name": "Reactnative_app",
+    "slug": "reactnative_app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
