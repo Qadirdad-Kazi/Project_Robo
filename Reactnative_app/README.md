@@ -1,0 +1,167 @@
+# 🤖 Android-Based Autonomous Mobile Robot (React Native)
+
+**A modular, voice-activated AI robot platform powered by Android and React Native.**
+
+![License](https://img.shields.io/badge/license-MIT-blue.svg) ![Platform](https://img.shields.io/badge/platform-Android-green.svg) ![React Native](https://img.shields.io/badge/framework-React_Native-cyan.svg)
+
+## 📖 Project Overview
+
+This project transforms an Android smartphone into the "brain" of an autonomous mobile robot. Leveraging the phone's powerful sensors, camera, and connectivity, it acts as a central cortex that processes vision, voice, and decision-making logic locally on the device.
+
+The complete system integrates **Face Recognition**, **Natural Language Understanding (NLU)**, **Obstacle Avoidance**, and **Media Playback** into a cohesive, personality-driven AI Assistant.
+
+### ✨ Key Features
+
+*   **🗣️ Advanced Voice Control**: Speak naturally to issue commands ("Follow me", "Play music", "Stop"). robust Intent Parsing handles variations in speech.
+*   **👁️ Facial Recognition & Emotion AI**: Identifies owners vs. guests and adapts responses based on user emotion (Happy, Sad, Neutral).
+*   **🧠 Decision Engine**: A centralized arbitration system that prioritizes Safety > User Commands > Autonomous Behaviors.
+*   **🚗 Navigation & Safety**: Includes obstacle avoidance logic, virtual physics simulation for testing, and visual tracking for "Follow Me" mode.
+*   **🎵 Media Integration**: Hands-free playback control for YouTube and music, with "Now Playing" status in the admin panel.
+*   **⚡ Power Management**: Adaptive behavior that degrades gracefully (reduces sensor polling, disables heavy AI) to save battery.
+*   **📅 Task Scheduling**: Remembers to remind you of tasks ("Remind me to water plants in 30 minutes").
+*   **🎛️ Admin Debug Dashboard**: A comprehensive "Mission Control" UI for real-time telemetry (Vision fps, Motor status, Battery load, Sensor data).
+
+---
+
+## 🛠️ Project Requirements
+
+### Hardware
+*   **Android Smartphone**:
+    *   **OS**: Android 8.0 (Oreo) or higher.
+    *   **RAM**: 4GB+ recommended for smooth vision processing.
+    *   **Camera**: Functional rear camera.
+*   **Robot Chassis (Optional)**:
+    *   Microcontroller (ESP32/Arduino) to drive motors.
+    *   Motor Driver + DC Motors.
+    *   Bluetooth Module (HC-05/06 or ESP32 internal) for phone-to-robot communication.
+
+### Software
+*   **Node.js**: v14+ and npm/yarn.
+*   **React Native**: 0.70+ (CLI workflow recommended).
+*   **Android Studio**: For compiling and installing execution on device.
+*   **Expo**: (If using Expo workflow) SDK 48+.
+
+### Core Libraries
+*   `react-native-vision-camera`: High-performance camera streaming.
+*   `react-native-voice`: Speech-to-Text conversion.
+*   `react-native-bluetooth-classic`: Serial communication with robot base.
+*   `tensorflow-lite` (Optional): For on-device advanced ML models.
+
+---
+
+## 🚀 Installation & Setup
+
+### 1. Clone the Repository
+```bash
+git clone https://github.com/your-username/react-native-robot-brain.git
+cd react-native-robot-brain
+```
+
+### 2. Install Dependencies
+```bash
+npm install
+# or
+yarn install
+```
+
+### 3. Android Configuration
+Ensure your Android device is connected with **USB Debugging** enabled.
+1.  Open `android/` folder in Android Studio to sync Gradle.
+2.  Add necessary permissions (Camera, Microphone, Bluetooth) in `AndroidManifest.xml` (already included in repo).
+
+### 4. Run the App
+```bash
+# Start Metro Bundler
+npm start
+
+# Install on Android Device
+npm run android
+```
+
+---
+
+## 🔌 Integration & Hardware Setup
+
+### Bluetooth Motor Controller (Optional)
+If connecting to a physical robot base:
+1.  Flash your ESP32/Arduino with firmware that accepts serial strings (e.g., `'FORWARD'`, `'STOP'`).
+2.  Pair the Android phone with the Bluetooth module.
+3.  In `src/services/RobotService.js`, set `USE_BLUETOOTH = true` and update the `DEVICE_NAME`.
+
+### Simulation Mode
+Don't have hardware yet? The app defaults to **Simulation Mode**.
+*   **Virtual Motors**: The app simulates physics, position, and movement.
+*   **Manual Obstacles**: You can "inject" fake obstacles via the Admin Panel to test avoidance logic.
+
+---
+
+## 🕹️ Usage Instructions
+
+### 1. Launching the Brain
+*   Open the app. You will see the **User Mode** screen (Face Scan active).
+*   **Authorize**: Once your face is recognized (default: 'OWNER_001'), the system unlocks personalized commands.
+
+### 2. Voice Commands
+Tap the microphone or enable "Always Listen" (if configured). Try saying:
+*   *"Follow me"* — Starts visual tracking.
+*   *"Stop" / "Halt"* — Emergency stop.
+*   *"Play [Song Name]"* — Opens simple web player or YouTube intent.
+*   *"Remind me to [Task] in [X] minutes"* — Schedules a task.
+*   *"How are you?"* — Checks status and battery.
+
+### 3. Admin Debug Panel
+Navigate to the **Admin** tab to see the system internals:
+*   **Cortex Link**: Shows what the Decision Engine is "thinking" (IDLE, FOLLOW, AVOID).
+*   **Vision Feed**: Real-time camera stream with face bounding boxes and emotion labels.
+*   **Sensor Array**: Live distance data (real or simulated).
+*   **Energy Core**: Battery health and power mode.
+
+---
+
+## 📂 Project Structure
+
+Verified module architecture:
+
+```text
+src/
+├── core/               # Central Intelligence (DecisionEngine.js)
+├── voice/              # Speech & NLU (IntentParser.js, CommandMap.js)
+├── vision/             # (or camera/) Camera & Face Processing
+├── navigation/         # Movement logic (FollowEngine, MoveToPoint)
+├── emotional/          # (or ai-behavior/) Sentiment analysis & Personality
+├── media/              # Audio playback & YouTube integration
+├── sensors/            # Abstracted hardware inputs (Distance, Battery)
+├── services/           # Singletons (Bluetooth, Global State)
+├── tasks/              # Scheduler & Mission Queue
+├── system/             # Power Management & resource allocation
+├── screens/            # UI Components (AdminScreen, UserScreen)
+└── simulation/         # Virtual hardware for testing
+```
+
+---
+
+## 🤝 Contributing
+
+We welcome contributions!
+1.  **Fork** the repository.
+2.  Create a feature branch (`git checkout -b feature/AmazingAI`).
+3.  Commit your changes.
+4.  Push to the branch.
+5.  Open a **Pull Request**.
+
+---
+
+## 📄 License
+
+Distributed under the **MIT License**. See `LICENSE` for more information.
+
+---
+
+## 📞 Contact & Support
+
+For bugs, feature requests, or help setting up your robot:
+*   **Issues**: Open a ticket on GitHub Issues.
+*   **Email**: support@robot-project.com
+
+---
+*Built with ❤️ and JavaScript in 2026.*
