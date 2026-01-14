@@ -9,6 +9,7 @@ import DistanceSensor from '../sensors/DistanceSensor';
 import CameraViewComponent from '../camera/CameraView';
 import DecisionEngine from '../core/DecisionEngine';
 import MediaController from '../media/MediaController';
+import TaskScheduler from '../tasks/TaskScheduler';
 
 const AdminScreen = ({ navigation }) => {
     const isFocused = useIsFocused();
@@ -24,6 +25,7 @@ const AdminScreen = ({ navigation }) => {
     });
 
     const [mediaState, setMediaState] = useState({ status: 'IDLE', track: null });
+    const [tasks, setTasks] = useState([]); // Task State
 
     const [visionStats, setVisionStats] = useState({
         fps: 0,
@@ -49,6 +51,11 @@ const AdminScreen = ({ navigation }) => {
         // Media Listener
         const unsubscribeMedia = MediaController.addListener((state) => {
             setMediaState(state);
+        });
+
+        // Task Listener
+        const unsubscribeTasks = TaskScheduler.addListener((list) => {
+            setTasks(list);
         });
 
         // Distance Sensor Listener
@@ -81,6 +88,7 @@ const AdminScreen = ({ navigation }) => {
         return () => {
             unsubscribeCortex();
             unsubscribeMedia();
+            unsubscribeTasks();
             DistanceSensor.removeListener('distance', onDistance);
             unsubscribeRobot();
             unsubscribeVision();
@@ -212,6 +220,30 @@ const AdminScreen = ({ navigation }) => {
                             </TouchableOpacity>
                         )}
                     </View>
+                </View>
+
+                {/* 0.3 MISSION SCHEDULE (NEW) */}
+                <View style={[styles.inspectorCard, { borderLeftColor: '#FF9800' }]}>
+                    <View style={styles.inspectorHeader}>
+                        <Ionicons name="time-outline" size={18} color="#FF9800" />
+                        <Text style={[styles.inspectorTitle, { color: '#FF9800' }]}>MISSION SCHEDULE</Text>
+                        <View style={[styles.statusBadge, { backgroundColor: '#333' }]}>
+                            <Text style={{ color: '#AAA', fontSize: 10 }}>{tasks.length} PENDING</Text>
+                        </View>
+                    </View>
+
+                    {tasks.length === 0 ? (
+                        <Text style={{ color: '#666', fontStyle: 'italic', fontSize: 12 }}>No active directives.</Text>
+                    ) : (
+                        tasks.slice(0, 3).map((task, i) => (
+                            <View key={task.id} style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+                                <Text style={styles.value}>• {task.description}</Text>
+                                <Text style={[styles.valueCode, { color: '#FFB74D' }]}>
+                                    {new Date(task.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </Text>
+                            </View>
+                        ))
+                    )}
                 </View>
 
                 {/* 0.5 SENSOR ARRAY */}

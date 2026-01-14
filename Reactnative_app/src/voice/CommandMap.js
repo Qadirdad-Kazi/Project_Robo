@@ -7,6 +7,7 @@ import { INTENTS } from './IntentParser';
 import FollowOwnerEngine from '../navigation/FollowOwnerEngine';
 import DecisionEngine, { MODES } from '../core/DecisionEngine';
 import MediaController from '../media/MediaController';
+import TaskScheduler from '../tasks/TaskScheduler';
 
 class CommandMap {
 
@@ -24,6 +25,12 @@ class CommandMap {
                 VoiceService.speak("Stopping.");
                 break;
 
+            case INTENTS.SCHEDULE_TASK:
+                await TaskScheduler.scheduleTask(parameters.description, parameters.time);
+                const timeStr = new Date(parameters.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                VoiceService.speak(`I will remind you to ${parameters.description} at ${timeStr}.`);
+                break;
+
             case INTENTS.PLAY_MUSIC:
                 // Start Music
                 const query = parameters.query || "Music";
@@ -39,8 +46,6 @@ class CommandMap {
             case INTENTS.FOLLOW:
                 FollowOwnerEngine.start();
                 break;
-
-            // ... (rest same)
 
             case INTENTS.MOVE:
                 DecisionEngine.setMode(MODES.MANUAL); // Take over

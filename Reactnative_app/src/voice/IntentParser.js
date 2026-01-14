@@ -11,6 +11,7 @@ export const INTENTS = {
     GREET: 'GREETING',
     PLAY_MUSIC: 'PLAY_MUSIC',
     MEDIA_CONTROL: 'MEDIA_CONTROL',
+    SCHEDULE_TASK: 'SCHEDULE_TASK',
     UNKNOWN: 'UNKNOWN'
 };
 
@@ -24,6 +25,24 @@ class IntentParser {
     parse(text) {
         if (!text) return this.createResult(INTENTS.UNKNOWN, 0.0);
         const lower = text.toLowerCase().trim();
+
+        // 0. SCHEDULING (Complex Parsing)
+        // "Remind me to [Task] in [N] minutes"
+        const remindMatch = lower.match(/remind me to (.+) in (\d+) (minute|min|hour|hr|second|sec)/);
+        if (remindMatch) {
+            const task = remindMatch[1];
+            const amount = parseInt(remindMatch[2]);
+            const unit = remindMatch[3];
+
+            let offsetMs = 0;
+            if (unit.startsWith('min')) offsetMs = amount * 60000;
+            else if (unit.startsWith('hour')) offsetMs = amount * 3600000;
+            else if (unit.startsWith('sec')) offsetMs = amount * 1000;
+
+            const time = Date.now() + offsetMs;
+
+            return this.createResult(INTENTS.SCHEDULE_TASK, 0.95, { description: task, time });
+        }
 
         // 1. Music (Search & Play) - Check first to catch "Play" before generic moves
         // "Play something on youtube", "Play Despacito"
