@@ -169,6 +169,18 @@ If you don't want to install the heavy Android Studio IDE, you can set up a head
 
 ---
 
+### ⚠️ Troubleshooting Build Errors
+
+#### **Java heap space / Out of Memory**
+If the build fails with `Java heap space` during the "Jetify" task, you need to give Gradle more memory:
+1. Open `android/gradle.properties`.
+2. Find `org.gradle.jvmargs` and increase it to:
+   ```properties
+   org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=512m
+   ```
+
+---
+
 ## 📲 Transferring APK to Android
 
 Choose one of these methods to move the file from your Mac to your Phone:
