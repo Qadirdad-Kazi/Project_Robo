@@ -14,7 +14,13 @@ class VoiceServiceHandler extends EventEmitter {
     constructor() {
         super();
         this.isNativeAvailable = false;
-        this.checkAvailability();
+
+        // Safety check: ensure Voice is not null before checking availability
+        if (Voice) {
+            this.checkAvailability();
+        } else {
+            console.warn("Voice module is null, native voice disabled");
+        }
 
         // Bind methods
         this._onSpeechStart = this._onSpeechStart.bind(this);

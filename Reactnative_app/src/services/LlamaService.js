@@ -4,7 +4,7 @@
 
 class LlamaService {
     constructor() {
-        this.host = 'http://192.168.100.136:11434'; // Default to observed IP, user can change
+        this.host = 'http://127.0.0.1:11434'; // Default to localhost (Termux/Device), user can change
         this.model = 'llama3.2:3b';
         this.isThinking = false;
     }
