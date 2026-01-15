@@ -103,6 +103,67 @@ OLLAMA_HOST=0.0.0.0 ollama serve
 
 ---
 
+## 📦 Building & Transferring APK (Native Android)
+
+To test on a real device with **Native Voice Recognition**, you must build a standalone APK.
+
+### 1. Prerequisites (Setup Java)
+Android builds require **JDK 17**. If you are on macOS:
+
+```bash
+# Install JDK 17 via Homebrew
+brew install openjdk@17
+
+# Link it to your system
+sudo ln -sfn /opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk /Library/Java/JavaVirtualMachines/openjdk-17.jdk
+```
+
+### 2. Generate Native Project
+If you haven't already, generate the native `android/` directory:
+```bash
+npx expo prebuild --platform android
+```
+
+### 3. Build the APK (Gradle)
+Run the build script from the android folder:
+```bash
+cd android
+./gradlew assembleDebug
+```
+**APK Location:** `android/app/build/outputs/apk/debug/app-debug.apk`
+
+---
+
+## 📲 Transferring APK to Android
+
+Choose one of these methods to move the file from your Mac to your Phone:
+
+### Method A: Direct Install (ADB) - Fastest
+Connect your phone via USB with **USB Debugging** enabled.
+```bash
+# Install ADB if missing
+brew install --cask android-platform-tools
+
+# Install APK directly
+adb install android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+### Method B: Wireless Transfer (Snapdrop)
+1. Open **[Snapdrop.net](https://snapdrop.net/)** on both your Mac and Android phone (must be on same Wi-Fi).
+2. Click the icon on your Mac and select the `app-debug.apk`.
+3. Accept the download on your phone and Install.
+
+### Method C: Local Web Server (Python)
+1. In your terminal:
+   ```bash
+   cd android/app/build/outputs/apk/debug
+   python3 -m http.server 8000
+   ```
+2. On your phone's browser, visit: `YOUR_MAC_IP:8000` (e.g., `192.168.1.5:8000`).
+3. Tap the file to download and install.
+
+---
+
 ## 🔌 Integration & Hardware Setup
 
 ### Bluetooth Motor Controller (Optional)
