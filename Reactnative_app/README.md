@@ -134,6 +134,41 @@ cd android
 
 ---
 
+### 🛡️ Building without Android Studio (Lightweight Mode)
+
+If you don't want to install the heavy Android Studio IDE, you can set up a headless build environment using Homebrew:
+
+1.  **Install Command Line Tools**:
+    ```bash
+    brew install --cask android-commandlinetools android-platform-tools
+    ```
+
+2.  **Configure Environment Variables** (Add to `~/.zshrc`):
+    ```bash
+    export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
+    export PATH=$PATH:$ANDROID_HOME/platform-tools
+    export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin
+    export PATH=$PATH:$ANDROID_HOME/emulator
+    
+    # Ensure Java 17 is linked
+    export JAVA_HOME=$(/usr/libexec/java_home -v 17)
+    ```
+
+3.  **Accept Licenses & Install SDK Components**:
+    ```bash
+    # Accept all licenses
+    yes | sdkmanager --licenses
+
+    # Install specific project requirements
+    sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools" "ndk;27.1.12297006"
+    ```
+
+4.  **Local Properties**:
+    Ensure `android/local.properties` contains:
+    `sdk.dir=/opt/homebrew/share/android-commandlinetools`
+
+---
+
 ## 📲 Transferring APK to Android
 
 Choose one of these methods to move the file from your Mac to your Phone:
@@ -146,7 +181,13 @@ brew install --cask android-platform-tools
 
 # Install APK directly
 adb install android/app/build/outputs/apk/debug/app-debug.apk
+
+> **💡 Pro Tip:** To see the robot's "brain" logs (what it's hearing, thinking, and Llama's responses) in real-time while it runs on your phone, run:
+> ```bash
+> adb logcat *:S ReactNative:V ReactNativeJS:V
+> ```
 ```
+
 
 ### Method B: Wireless Transfer (Snapdrop)
 1. Open **[Snapdrop.net](https://snapdrop.net/)** on both your Mac and Android phone (must be on same Wi-Fi).
